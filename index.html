@@ -1,0 +1,2633 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="theme-color" content="#ffffff" />
+  <meta name="color-scheme" content="light" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <title>iPad Express Checkout - Phase II</title>
+
+  <!-- ZXing QR Code Library - Better iOS Compatibility -->
+  <script src="https://unpkg.com/@zxing/library@0.20.0/umd/index.min.js"></script>
+
+  <style>
+    /* ===== LIGHT MODE THEME ===== */
+    :root{
+      /* ===== WIST BRAND PALETTE =====
+         Navy  #182D57 - every button and tab (13.5:1 with white text)
+         Blue  #0E6DFF - focus rings, icons, small accents (4.5:1 on white)
+         Gold  #C9BE0B - highlights only; never text on white (1.9:1).
+                         Used on navy (7.0:1) or behind navy text (7.0:1)
+         Ink   #00002E - headings and body text */
+      --primary:#182D57;
+      --primary-dark:#0f1e3d;
+      --primary-deep:#182D57;
+      --primary-soft:#eef3fb;
+      --primary-border:#b9c7e3;
+      --primary-shadow:rgba(24,45,87,0.25);
+      --brand-blue:#0E6DFF;
+      --brand-gold:#C9BE0B;
+      --brand-gold-soft:#f8f6d8;
+      --success:#059669;
+      --success-dark:#047857;
+      --success-soft:#ecfdf5;
+      --danger:#dc2626;
+      --danger-dark:#b91c1c;
+      --danger-soft:#fef2f2;
+      /* Warnings use amber so they stay distinct from the WIST gold */
+      --warning:#f59e0b;
+      --warning-dark:#92400e;
+      --warning-soft:#fffbeb;
+
+      --bg:#f4f6fb;
+      --panel:#ffffff;
+      --border:#e2e8f0;
+      --gray:#e2e8f0;
+      --text:#00002E;
+      --text-2:#475569;
+      --text-3:#475569;
+      --vh:1vh;
+
+      /* Semantic colours */
+      --actionable-blue:var(--primary);
+      --active-zone:var(--primary-soft);
+      --audit-grey:#64748b;
+      --historical-bg:#ffffff;
+
+      --shadow-sm:0 1px 2px rgba(15,23,42,0.06), 0 1px 3px rgba(15,23,42,0.08);
+      --shadow-md:0 4px 12px rgba(15,23,42,0.08);
+      --shadow-lg:0 20px 40px rgba(15,23,42,0.15);
+    }
+
+    *{ box-sizing:border-box; }
+
+    body{
+      font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+      background:var(--bg);
+      color:var(--text);
+      margin:0;
+      display:flex;
+      flex-direction:column;
+      height:calc(var(--vh) * 100);
+      overflow:hidden;
+      -webkit-user-select:none;
+      -webkit-tap-highlight-color:transparent;
+      padding-top:env(safe-area-inset-top);
+      padding-bottom:env(safe-area-inset-bottom);
+    }
+
+    .header{
+      padding:12px;
+      background:var(--panel);
+      border-bottom:1px solid var(--border);
+      box-shadow:var(--shadow-sm);
+      flex-shrink:0;
+    }
+
+    .mode-toggle{
+      display:flex;
+      background:#eef1f6;
+      border-radius:12px;
+      padding:4px;
+      margin:0 auto;
+      width:min(520px, 100%);
+    }
+
+    .mode-btn:focus-visible,
+    .start-btn:focus-visible,
+    .finish-btn:focus-visible,
+    .modal-btn:focus-visible,
+    .modal-close:focus-visible,
+    .result-modal-btn:focus-visible,
+    .clear-btn:focus-visible,
+    .delete-btn:focus-visible{
+      outline:3px solid var(--brand-blue);
+      outline-offset:2px;
+    }
+
+    .mode-btn{
+      flex:1;
+      padding:12px;
+      border:none;
+      border-radius:9px;
+      color:var(--text-3);
+      background:none;
+      font-size:1.05rem;
+      font-weight:800;
+      letter-spacing:0.5px;
+      cursor:pointer;
+      transition:0.2s;
+    }
+
+    .mode-btn.active{
+      background:var(--primary);
+      color:#fff;
+      box-shadow:inset 0 -4px 0 var(--brand-gold), 0 2px 8px var(--primary-shadow);
+    }
+
+    #reader-container{
+      width:min(560px, 100%);
+      margin:12px auto 0;
+      padding:0 12px;
+      position:relative;
+      flex-shrink:0;
+    }
+
+    #reader{
+      width:100% !important;
+      height:clamp(220px, 38vh, 360px) !important;
+      background:#1e293b;
+      border-radius:16px;
+      overflow:hidden;
+      border:1px solid var(--border);
+      box-shadow:var(--shadow-md);
+      object-fit:cover;
+      display:block;
+      transform: translateZ(0);
+      -webkit-transform: translateZ(0);
+    }
+
+    @supports (-webkit-touch-callout: none) {
+      #reader {
+        height: calc(clamp(220px, 38vh, 360px) - env(safe-area-inset-bottom)) !important;
+      }
+    }
+
+    .scan-overlay{
+      position:absolute;
+      top:50%;
+      left:50%;
+      transform:translate(-50%, -50%);
+      width:min(260px, 72vw);
+      height:min(260px, 72vw);
+      max-width:260px;
+      max-height:260px;
+      border:3px solid var(--success);
+      border-radius:14px;
+      pointer-events:none;
+      opacity:0.6;
+      transition:all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    .scan-overlay.scanning{
+      animation:pulse 2s infinite;
+    }
+
+    .scan-overlay.cooldown{
+      border-color:var(--warning);
+      opacity:0.35;
+      animation:none;
+    }
+
+    .scan-overlay.feedback-success {
+      border-color: #10b981;
+      box-shadow: 0 0 40px rgba(16, 185, 129, 0.6);
+      animation: successPulse 0.5s ease-out;
+    }
+
+    .scan-overlay.feedback-error {
+      border-color: #ef4444;
+      box-shadow: 0 0 40px rgba(239, 68, 68, 0.6);
+      animation: errorShake 0.5s ease-out;
+    }
+
+    /* Visual vibration fallback */
+    .scan-overlay.visual-shake {
+      animation: visualShake 0.5s cubic-bezier(.36,.07,.19,.97) both;
+    }
+
+    @keyframes visualShake {
+      10%, 90% { transform: translate(-50%, -50%) translateX(-5px); }
+      20%, 80% { transform: translate(-50%, -50%) translateX(5px); }
+      30%, 50%, 70% { transform: translate(-50%, -50%) translateX(-3px); }
+      40%, 60% { transform: translate(-50%, -50%) translateX(3px); }
+    }
+
+    @keyframes pulse{
+      0%,100%{ opacity:0.6; }
+      50%{ opacity:0.3; }
+    }
+
+    @keyframes successPulse {
+      0% { transform: translate(-50%, -50%) scale(1); }
+      50% { transform: translate(-50%, -50%) scale(1.05); }
+      100% { transform: translate(-50%, -50%) scale(1); }
+    }
+
+    @keyframes errorShake {
+      0%, 100% { transform: translate(-50%, -50%) translateX(0); }
+      25% { transform: translate(-50%, -50%) translateX(-10px); }
+      75% { transform: translate(-50%, -50%) translateX(10px); }
+    }
+
+    .scan-corner{
+      position:absolute;
+      width:30px;
+      height:30px;
+      border:3px solid var(--success);
+      transition:border-color 0.2s;
+    }
+
+    .scan-overlay.cooldown .scan-corner,
+    .scan-overlay.feedback-error .scan-corner{
+      border-color:var(--warning);
+    }
+
+    .scan-overlay.feedback-success .scan-corner{
+      border-color:#10b981;
+    }
+
+    .scan-corner.tl{ top:0; left:0; border-right:none; border-bottom:none; }
+    .scan-corner.tr{ top:0; right:0; border-left:none; border-bottom:none; }
+    .scan-corner.bl{ bottom:0; left:0; border-right:none; border-top:none; }
+    .scan-corner.br{ bottom:0; right:0; border-left:none; border-top:none; }
+
+    /* ===== POST-SAVE RESULT MODAL ===== */
+    .result-modal-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(241, 245, 249, 0.92);
+      backdrop-filter: blur(6px);
+      -webkit-backdrop-filter: blur(6px);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 10001;
+      animation: fadeIn 0.2s ease-out;
+    }
+
+    .result-modal-overlay.active {
+      display: flex;
+    }
+
+    .result-modal-content {
+      background: #ffffff;
+      border: 1px solid var(--border);
+      border-radius: 24px;
+      padding: 40px 30px;
+      text-align: center;
+      max-width: 90%;
+      width: 460px;
+      box-shadow: var(--shadow-lg);
+      animation: scaleIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    }
+
+    .result-icon {
+      width: 100px;
+      height: 100px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 56px;
+      color: white;
+      margin: 0 auto 24px;
+      animation: scaleIn 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    }
+
+    .result-icon.success {
+      background: var(--success);
+      border: 6px solid #d1fae5;
+    }
+
+    .result-icon.error {
+      background: var(--danger);
+      border: 6px solid #fee2e2;
+    }
+
+    .result-icon.warning {
+      background: var(--warning);
+      border: 6px solid #fef3c7;
+      color: #451a03;
+    }
+
+    .result-modal-content h2 {
+      margin: 0 0 16px;
+      font-size: 32px;
+      color: var(--text);
+      font-weight: 900;
+    }
+
+    .result-summary {
+      font-size: 18px;
+      color: var(--text-2);
+      margin-bottom: 24px;
+      line-height: 1.6;
+    }
+
+    .result-details {
+      background: #f8fafc;
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 20px;
+      margin-bottom: 24px;
+      text-align: left;
+    }
+
+    .result-detail-row {
+      display: flex;
+      justify-content: space-between;
+      padding: 8px 0;
+      border-bottom: 1px solid var(--border);
+      font-size: 16px;
+    }
+
+    .result-detail-row:last-child {
+      border-bottom: none;
+    }
+
+    .result-detail-label {
+      color: var(--text-3);
+      font-weight: 600;
+    }
+
+    .result-detail-value {
+      color: var(--text);
+      font-weight: 800;
+    }
+
+    .result-detail-value.success-count {
+      color: var(--success-dark);
+    }
+
+    .result-detail-value.error-count {
+      color: var(--danger-dark);
+    }
+
+    .result-errors-list {
+      max-height: 200px;
+      overflow-y: auto;
+      margin-top: 16px;
+      text-align: left;
+    }
+
+    .result-error-item {
+      background: var(--danger-soft);
+      border-left: 4px solid #ef4444;
+      padding: 12px;
+      margin-bottom: 8px;
+      border-radius: 8px;
+      font-size: 14px;
+      line-height: 1.5;
+    }
+
+    .result-error-ipad {
+      font-weight: 900;
+      color: var(--danger-dark);
+      font-family: monospace;
+    }
+
+    .result-error-message {
+      color: #7f1d1d;
+      margin-top: 4px;
+    }
+
+    .result-modal-btn {
+      background: var(--primary);
+      color: white;
+      border: none;
+      padding: 16px 40px;
+      border-radius: 14px;
+      font-size: 18px;
+      font-weight: 800;
+      cursor: pointer;
+      transition: all 0.2s;
+      box-shadow: 0 4px 12px var(--primary-shadow);
+      width: 100%;
+    }
+
+    .result-modal-btn:hover { background: var(--primary-dark); }
+
+    .result-modal-btn:active {
+      transform: scale(0.98);
+    }
+
+    .result-auto-close {
+      color: var(--text-3);
+      font-size: 14px;
+      margin-top: 16px;
+      font-style: italic;
+    }
+
+    /* ===== SAVING OVERLAY ===== */
+    .saving-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(248, 250, 252, 0.95);
+      backdrop-filter: blur(6px);
+      -webkit-backdrop-filter: blur(6px);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 10000;
+      flex-direction: column;
+    }
+
+    .saving-overlay.active {
+      display: flex;
+    }
+
+    .saving-spinner {
+      width: 60px;
+      height: 60px;
+      border: 5px solid var(--primary-soft);
+      border-top-color: var(--brand-blue);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    .saving-text {
+      color: var(--text);
+      font-size: 24px;
+      font-weight: 800;
+      margin-top: 24px;
+    }
+
+    .saving-subtext {
+      color: var(--text-3);
+      font-size: 16px;
+      margin-top: 8px;
+    }
+
+    /* ===== USER CONFIRMATION MODAL ===== */
+    .modal-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(241, 245, 249, 0.92);
+      backdrop-filter: blur(6px);
+      -webkit-backdrop-filter: blur(6px);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 9999;
+      animation: fadeIn 0.2s ease-out;
+    }
+
+    .modal-content {
+      background: #ffffff;
+      border: 2px solid var(--success);
+      border-top-width: 8px;
+      border-radius: 24px;
+      padding: 40px;
+      text-align: center;
+      max-width: 90%;
+      width: 420px;
+      box-shadow: var(--shadow-lg);
+    }
+
+    .checkmark-icon {
+      width: 80px;
+      height: 80px;
+      background: var(--success);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 48px;
+      color: white;
+      margin: 0 auto 20px;
+      animation: scaleIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    }
+
+    .modal-content h2 {
+      margin: 0 0 16px;
+      font-size: 28px;
+      color: var(--text);
+    }
+
+    .user-info {
+      font-size: 18px;
+      color: var(--text-2);
+      margin-bottom: 24px;
+    }
+
+    .user-info strong {
+      display: block;
+      font-size: 24px;
+      color: var(--success-dark);
+      margin-bottom: 8px;
+      font-family: monospace;
+    }
+
+    .next-step {
+      background: var(--primary-soft);
+      border: 2px dashed var(--brand-blue);
+      border-radius: 16px;
+      padding: 20px;
+      margin: 24px 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 16px;
+    }
+
+    .arrow-icon {
+      font-size: 32px;
+      color: var(--brand-blue);
+      animation: bounce 1s infinite;
+    }
+
+    .next-step p {
+      margin: 0;
+      font-size: 18px;
+      color: var(--text);
+      font-weight: 600;
+    }
+
+    .modal-close {
+      background: var(--primary);
+      color: white;
+      border: none;
+      padding: 14px 32px;
+      border-radius: 12px;
+      font-size: 16px;
+      font-weight: 700;
+      cursor: pointer;
+      margin-top: 16px;
+      transition: background 0.2s;
+    }
+
+    .modal-close:hover {
+      background: var(--primary-dark);
+    }
+
+    .modal-close:active { transform: scale(0.97); }
+
+    /* Transaction confirmation modal */
+    .confirmation-modal .modal-content {
+      border-color: var(--primary);
+      border-top-color: var(--brand-gold);
+      max-width: 95%;
+      width: 500px;
+    }
+
+    .confirmation-modal .warning-icon {
+      width: 80px;
+      height: 80px;
+      background: var(--actionable-blue);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 48px;
+      color: white;
+      margin: 0 auto 20px;
+      animation: scaleIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    }
+
+    .transaction-summary {
+      background: var(--primary-soft);
+      border: 1px solid var(--primary-border);
+      border-radius: 12px;
+      padding: 20px;
+      margin: 20px 0;
+      text-align: left;
+    }
+
+    .transaction-summary h3 {
+      margin: 0 0 16px;
+      font-size: 16px;
+      color: var(--primary);
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+
+    .transaction-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 10px 0;
+      border-bottom: 1px solid var(--primary-border);
+    }
+
+    .transaction-item:last-child {
+      border-bottom: none;
+    }
+
+    .transaction-label {
+      font-size: 14px;
+      color: var(--text-3);
+      font-weight: 600;
+    }
+
+    .transaction-value {
+      font-size: 16px;
+      color: var(--text);
+      font-family: monospace;
+      font-weight: 700;
+    }
+
+    .asset-count {
+      background: var(--brand-gold);
+      color: var(--primary);
+      padding: 6px 16px;
+      border-radius: 20px;
+      font-size: 18px;
+      font-weight: 900;
+    }
+
+    .modal-actions {
+      display: flex;
+      gap: 12px;
+      margin-top: 24px;
+    }
+
+    .modal-btn {
+      flex: 1;
+      padding: 16px;
+      border: none;
+      border-radius: 12px;
+      font-size: 16px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .modal-btn-cancel {
+      background: #ffffff;
+      color: var(--primary);
+      border: 2px solid var(--primary-border);
+    }
+
+    .modal-btn-cancel:hover {
+      background: var(--primary-soft);
+    }
+
+    .modal-btn-confirm {
+      background: var(--actionable-blue);
+      color: white;
+    }
+
+    .modal-btn-confirm:hover {
+      background: var(--primary-dark);
+    }
+
+    .modal-btn:active { transform: scale(0.97); }
+
+    /* Error modal */
+    .error-modal .modal-content {
+      border-color: var(--danger);
+    }
+
+    .error-modal .error-icon {
+      width: 80px;
+      height: 80px;
+      background: var(--danger-soft);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 44px;
+      margin: 0 auto 20px;
+      animation: scaleIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    }
+
+    .error-details {
+      background: var(--danger-soft);
+      border: 1px solid #fecaca;
+      border-radius: 12px;
+      padding: 20px;
+      margin: 20px 0;
+      text-align: left;
+    }
+
+    .error-details code {
+      display: block;
+      background: #ffffff;
+      border: 1px solid #fecaca;
+      padding: 12px;
+      border-radius: 8px;
+      font-family: monospace;
+      font-size: 14px;
+      color: var(--danger-dark);
+      margin-top: 12px;
+      word-break: break-all;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; }
+      to { opacity: 1; }
+    }
+
+    @keyframes scaleIn {
+      from { transform: scale(0); }
+      to { transform: scale(1); }
+    }
+
+    @keyframes bounce {
+      0%, 100% { transform: translateX(0); }
+      50% { transform: translateX(8px); }
+    }
+
+    .fade-out {
+      animation: fadeOut 0.3s ease-in forwards;
+    }
+
+    @keyframes fadeOut {
+      to { opacity: 0; transform: scale(0.95); }
+    }
+
+    /* ===== SCREEN FLASH FEEDBACK =====
+       Uses normal blending: "screen" blending is invisible on a light background. */
+    .screen-flash {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      z-index: 99999;
+      animation: flashEffect 0.4s ease-out;
+    }
+
+    .screen-flash-success {
+      background: radial-gradient(circle, rgba(16, 185, 129, 0.28) 0%, transparent 70%);
+    }
+
+    .screen-flash-error {
+      background: radial-gradient(circle, rgba(239, 68, 68, 0.32) 0%, transparent 70%);
+    }
+
+    .screen-flash-warning {
+      background: radial-gradient(circle, rgba(245, 158, 11, 0.3) 0%, transparent 70%);
+    }
+
+    .screen-flash-complete {
+      background: radial-gradient(circle, rgba(14, 109, 255, 0.25) 0%, transparent 70%);
+    }
+
+    @keyframes flashEffect {
+      0% { opacity: 0; transform: scale(0.8); }
+      50% { opacity: 1; transform: scale(1); }
+      100% { opacity: 0; transform: scale(1.1); }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .screen-flash, .checkmark-icon, .arrow-icon, .scan-overlay {
+        animation: none !important;
+      }
+    }
+
+    .start-overlay{
+      position:absolute;
+      inset:0 12px 0 12px;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      background:rgba(255,255,255,0.7);
+      backdrop-filter:blur(10px);
+      -webkit-backdrop-filter:blur(10px);
+      border-radius:16px;
+      z-index:100;
+    }
+
+    .start-btn{
+      background:var(--primary);
+      color:#fff;
+      font-size:1.2rem;
+      padding:20px 48px;
+      border:none;
+      border-radius:50px;
+      cursor:pointer;
+      font-weight:800;
+      letter-spacing:0.5px;
+      box-shadow:0 10px 30px var(--primary-shadow);
+      transition:0.3s;
+    }
+
+    .start-btn:hover{ background:var(--primary-dark); }
+    .start-btn:active{ transform:scale(0.95); }
+
+    /* Status banner: tinted card with dark text for strong contrast on light mode */
+    .status-banner{
+      margin:12px 12px 0;
+      padding:14px;
+      border-radius:12px;
+      border:1px solid transparent;
+      text-align:center;
+      font-weight:900;
+      font-size:0.95rem;
+      letter-spacing:0.5px;
+      transition:0.2s;
+      flex-shrink:0;
+    }
+
+    .status-waiting{ background:#ffffff; color:var(--text-2); border-color:var(--border); box-shadow:var(--shadow-sm); }
+    .status-success{ background:#dcfce7; color:#166534; border-color:#86efac; }
+    .status-error{ background:#fee2e2; color:#991b1b; border-color:#fca5a5; }
+    .status-warning{ background:#fef3c7; color:#92400e; border-color:#fcd34d; }
+
+    /* Active user card */
+    .user-panel{
+      display:none;
+      align-items:center;
+      justify-content:space-between;
+      background: var(--active-zone);
+      padding:16px 18px;
+      margin:12px 12px 0;
+      border-radius:16px;
+      border:2px solid var(--primary-border);
+      border-left:8px solid var(--brand-gold);
+      box-shadow: 0 6px 18px rgba(24, 45, 87, 0.10);
+      position: relative;
+      z-index: 10;
+    }
+
+    .user-label{
+      font-size:0.75rem;
+      color:var(--text-3);
+      margin-bottom:6px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      font-weight: 700;
+    }
+
+    #currentUserId{
+      font-size:1.3rem;
+      font-weight:900;
+      color:var(--primary-deep);
+      font-family:monospace;
+    }
+
+    .clear-btn{
+      background:#ffffff;
+      color:var(--danger-dark);
+      border:2px solid #fca5a5;
+      padding:10px 18px;
+      min-height:44px;
+      border-radius:10px;
+      font-size:0.85rem;
+      font-weight:800;
+      cursor:pointer;
+      transition: all 0.2s;
+    }
+
+    .clear-btn:active {
+      transform: scale(0.95);
+      background: var(--danger-soft);
+    }
+
+    /* Session history list */
+    .history-section{
+      flex:1;
+      overflow-y:auto;
+      padding:8px 12px 12px;
+      background: transparent;
+    }
+
+    .history-header{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      padding:12px 4px;
+      border-bottom: 1px solid var(--border);
+      margin-bottom: 10px;
+    }
+
+    .history-title{
+      font-size:0.85rem;
+      font-weight:900;
+      color:var(--text-3);
+      text-transform:uppercase;
+      letter-spacing:1px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .history-icon {
+      width: 20px;
+      height: 20px;
+      opacity: 0.8;
+    }
+
+    #sessionCount{
+      background:#e2e8f0;
+      color:var(--text);
+      padding:6px 14px;
+      border-radius:999px;
+      font-size:0.85rem;
+      font-weight:900;
+    }
+
+    #historyList{
+      display:none;
+    }
+
+    .history-row{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      background:var(--historical-bg);
+      padding:12px 14px;
+      margin:8px 0;
+      border-radius:12px;
+      border:1px solid var(--border);
+      box-shadow: var(--shadow-sm);
+      transition: background 0.2s;
+    }
+
+    .history-row:hover {
+      background: #f8fafc;
+    }
+
+    /* Status-aware history rows */
+    .history-row.status-pending {
+      border-left: 4px solid #94a3b8;
+    }
+
+    .history-row.status-success {
+      border-left: 4px solid var(--success);
+      background: var(--success-soft);
+    }
+
+    .history-row.status-failed {
+      border-left: 4px solid var(--danger);
+      background: var(--danger-soft);
+      animation: failedPulse 0.5s ease-out;
+    }
+
+    @keyframes failedPulse {
+      0% { transform: scale(1); }
+      50% { transform: scale(1.02); }
+      100% { transform: scale(1); }
+    }
+
+    .history-content {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .history-label{
+      font-family:monospace;
+      font-weight:700;
+      color:var(--text);
+      font-size:1rem;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .status-icon {
+      font-size: 1.1rem;
+      line-height: 1;
+    }
+
+    .status-icon.pending {
+      color: #94a3b8;
+    }
+
+    .status-icon.success {
+      color: var(--success-dark);
+    }
+
+    .status-icon.failed {
+      color: var(--danger-dark);
+    }
+
+    .error-reason {
+      font-size: 0.75rem;
+      color: var(--danger-dark);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      font-weight: 600;
+      margin-top: 2px;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .error-reason::before {
+      content: "⚠️";
+      font-size: 0.85rem;
+    }
+
+    .delete-btn{
+      background:transparent;
+      color:var(--danger-dark);
+      border:2px solid #fca5a5;
+      padding:8px 14px;
+      min-height:36px;
+      border-radius:10px;
+      font-size:0.75rem;
+      font-weight:800;
+      cursor:pointer;
+      transition: all 0.2s;
+    }
+
+    .delete-btn:active {
+      transform: scale(0.95);
+      background: var(--danger-soft);
+    }
+
+    .footer{
+      flex-shrink:0;
+      padding:12px;
+      background:var(--panel);
+      border-top:1px solid var(--border);
+      box-shadow:0 -2px 8px rgba(15,23,42,0.04);
+    }
+
+    .finish-btn{
+      width:100%;
+      background:var(--primary);
+      color:#fff;
+      padding:18px;
+      border:none;
+      border-radius:14px;
+      font-size:1.1rem;
+      font-weight:900;
+      letter-spacing:0.5px;
+      cursor:pointer;
+      box-shadow:0 8px 20px var(--primary-shadow);
+      transition:0.3s;
+    }
+
+    .finish-btn:disabled{
+      background:#e2e8f0;
+      color:#64748b;
+      cursor:not-allowed;
+      box-shadow:none;
+    }
+
+    .finish-btn:hover:not(:disabled){ background:var(--primary-dark); }
+    .finish-btn:active:not(:disabled){ transform:scale(0.97); }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div class="mode-toggle">
+      <button id="btnBorrow" class="mode-btn active" onclick="setMode('borrow')">BORROW</button>
+      <button id="btnReturn" class="mode-btn" onclick="setMode('return')">RETURN</button>
+    </div>
+  </div>
+
+  <div id="reader-container">
+    <video id="reader" autoplay playsinline></video>
+    <div class="scan-overlay scanning">
+      <div class="scan-corner tl"></div>
+      <div class="scan-corner tr"></div>
+      <div class="scan-corner bl"></div>
+      <div class="scan-corner br"></div>
+    </div>
+    <div id="startOverlay" class="start-overlay">
+      <button class="start-btn" onclick="userStart()">SCAN QR CODE</button>
+    </div>
+  </div>
+
+  <div class="status-banner status-waiting" id="statusBanner">TAP "SCAN QR CODE" TO BEGIN</div>
+
+  <div class="user-panel" id="userPanel">
+    <div>
+      <div class="user-label">🎯 Active User</div>
+      <div id="currentUserId">—</div>
+    </div>
+    <button class="clear-btn" onclick="clearAll()">CLEAR</button>
+  </div>
+
+  <div class="history-section">
+    <div class="history-header">
+      <div class="history-title">
+        <span class="history-icon">📋</span>
+        Session Items
+      </div>
+      <div id="sessionCount">Qty: 0</div>
+    </div>
+    <div id="historyList"></div>
+  </div>
+
+  <div class="footer">
+    <button id="finishBtn" class="finish-btn" onclick="showConfirmationModal()">FINISH & SAVE</button>
+  </div>
+
+  <!-- ===== POST-SAVE RESULT MODAL - ENHANCED FEEDBACK ===== -->
+  <div id="resultModal" class="result-modal-overlay">
+    <div class="result-modal-content">
+      <div id="resultIcon" class="result-icon success">
+        ✓
+      </div>
+      <h2 id="resultTitle">Transaction Complete</h2>
+      <div id="resultSummary" class="result-summary">
+        All iPads processed successfully
+      </div>
+      <div id="resultDetails" class="result-details" style="display:none;">
+        <!-- Details populated by JavaScript -->
+      </div>
+      <div id="resultErrors" class="result-errors-list" style="display:none;">
+        <!-- Error list populated by JavaScript -->
+      </div>
+      <button class="result-modal-btn" onclick="closeResultModal()">OK</button>
+      <div id="resultAutoClose" class="result-auto-close" style="display:none;">
+        Auto-closing in <span id="autoCloseTimer">2</span> seconds...
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== SAVING OVERLAY - IMMEDIATE FEEDBACK ===== -->
+  <div id="savingOverlay" class="saving-overlay">
+    <div class="saving-spinner"></div>
+    <div class="saving-text">Saving Transaction...</div>
+    <div class="saving-subtext" id="savingSubtext">Please wait</div>
+  </div>
+
+  <script>
+    // ===== CONFIG =====
+    const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbza6JTVJybMndWQ6dvzR-g8N70nGsyaL1GaROCEzc2ia1_gcjiRD7CrJ2YE5nkI5C8R/exec"; // UPDATE THIS
+    const DEBUG_MODE = true;
+    const DUPLICATE_WINDOW = 2000;
+    const COOLDOWN_DURATION = 1500;
+
+    // ===== STATE =====
+    let mode = "borrow";
+    let userId = null;
+    let sessionHistory = [];
+    let historyDom = new Map();
+    let ipadStatus = new Map(); // PHASE III: Track success/failure status per iPad
+    let unavailableIpads = [];
+    let knownUsersSet = new Set();
+    let knownIpadsSet = new Set();
+    let userTypesMap = {};      // v13.3: userId(upper) → "STUDENT" | "TEACHER"
+    let borrowedByUserMap = {}; // v13.3: userId(upper) → current borrow count from sheet
+    let lastScanned = null;
+    let lastScanTime = 0;
+    let isProcessing = false;
+    let transactionCompleted = false; // PHASE IV: Prevent duplicate saves
+    let isInCooldown = false;
+    let modalVisible = false; // PHASE IV: Block scans during modal display
+    let cooldownTimer = null;
+    let codeReader = null;
+
+    // PHASE II: Haptic Capability Detection
+    let hapticCapable = false;
+    let deviceInfo = {
+      isIOS: /iPhone|iPad|iPod/.test(navigator.userAgent),
+      isSafari: /^((?!chrome|android).)*safari/i.test(navigator.userAgent),
+      userAgent: navigator.userAgent
+    };
+
+    // ===== AUDIO SYSTEM =====
+    
+    let audioCtx = null;
+    let audioReady = false;
+    let audioBuffers = {
+      success: null,
+      error: null,
+      complete: null
+    };
+
+    async function initEnhancedAudio() {
+      if (audioReady) return;
+      
+      try {
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        
+        audioBuffers.success = generateSuccessChime(audioCtx);
+        audioBuffers.error = generateErrorBuzz(audioCtx);
+        audioBuffers.complete = generateCompleteTriad(audioCtx);
+        
+        if (audioCtx.state === 'suspended') {
+          await audioCtx.resume();
+        }
+        
+        audioReady = true;
+        log('✓ Enhanced audio system initialized');
+      } catch (err) {
+        console.error('Audio initialization failed:', err);
+      }
+    }
+
+    function generateSuccessChime(ctx) {
+      const sampleRate = ctx.sampleRate;
+      const duration = 0.15;
+      const buffer = ctx.createBuffer(1, sampleRate * duration, sampleRate);
+      const data = buffer.getChannelData(0);
+      
+      const freq = 880;
+      for (let i = 0; i < buffer.length; i++) {
+        const t = i / sampleRate;
+        const envelope = Math.exp(-t * 15);
+        const wave = Math.sin(2 * Math.PI * freq * t);
+        data[i] = wave * envelope * 0.15;
+      }
+      return buffer;
+    }
+
+    function generateErrorBuzz(ctx) {
+      const sampleRate = ctx.sampleRate;
+      const duration = 0.2;
+      const buffer = ctx.createBuffer(1, sampleRate * duration, sampleRate);
+      const data = buffer.getChannelData(0);
+      
+      for (let i = 0; i < buffer.length; i++) {
+        const t = i / sampleRate;
+        const progress = t / duration;
+        const freq = 350 - (progress * 120);
+        const envelope = Math.exp(-t * 8);
+        const wave = Math.sin(2 * Math.PI * freq * t);
+        data[i] = wave * envelope * 0.12;
+      }
+      return buffer;
+    }
+
+    function generateCompleteTriad(ctx) {
+      const sampleRate = ctx.sampleRate;
+      const duration = 0.25;
+      const buffer = ctx.createBuffer(1, sampleRate * duration, sampleRate);
+      const data = buffer.getChannelData(0);
+      
+      const freqs = [523.25, 659.25, 783.99];
+      
+      for (let i = 0; i < buffer.length; i++) {
+        const t = i / sampleRate;
+        const envelope = Math.exp(-t * 6);
+        let sample = 0;
+        
+        for (const freq of freqs) {
+          sample += Math.sin(2 * Math.PI * freq * t) * 0.05;
+        }
+        
+        data[i] = sample * envelope;
+      }
+      return buffer;
+    }
+
+    function playAudioBuffer(buffer) {
+      if (!audioReady || !buffer || !audioCtx) return;
+      
+      try {
+        if (audioCtx.state === "suspended") {
+          audioCtx.resume().then(() => {
+            const source = audioCtx.createBufferSource();
+            source.buffer = buffer;
+            source.connect(audioCtx.destination);
+            source.start(0);
+          }).catch(err => {
+            console.error("AudioContext resume failed:", err);
+          });
+        } else {
+          const source = audioCtx.createBufferSource();
+          source.buffer = buffer;
+          source.connect(audioCtx.destination);
+          source.start(0);
+        }
+      } catch (e) {
+        console.error("Audio playback failed:", e);
+      }
+    }
+
+    // ===== PHASE II: ENHANCED HAPTIC WITH GRACEFUL DEGRADATION =====
+    
+    /**
+     * Initialize and test haptic capabilities
+     */
+    function initHapticCapabilities() {
+      if (!navigator.vibrate) {
+        log('⚠️ Vibration API not supported');
+        hapticCapable = false;
+        return;
+      }
+
+      // PHASE II: User-Agent compatibility check
+      // Safari iOS has historically restricted Vibration API
+      if (deviceInfo.isIOS && !deviceInfo.isSafari) {
+        log('⚠️ iOS detected but not Safari - vibration may be restricted');
+      }
+
+      // Test vibration
+      try {
+        const testResult = navigator.vibrate(1);
+        hapticCapable = testResult;
+        log(`✓ Haptic capability: ${hapticCapable ? 'ENABLED' : 'DISABLED'}`);
+      } catch (err) {
+        log('⚠️ Vibration test failed:', err);
+        hapticCapable = false;
+      }
+
+      log('Device Info:', deviceInfo);
+    }
+
+    /**
+     * Trigger haptic with automatic fallback to visual vibration
+     */
+    function triggerHaptic(type) {
+      const patterns = {
+        success: [25],
+        error: [50, 100, 50],
+        warning: [30, 50, 30],
+        complete: [50, 100, 50, 100, 100]
+      };
+      
+      if (hapticCapable) {
+        try {
+          const result = navigator.vibrate(patterns[type] || [25]);
+          if (result) {
+            log(`✓ Haptic: ${type}`);
+            return;
+          }
+        } catch (err) {
+          log('⚠️ Haptic failed, falling back to visual');
+        }
+      }
+
+      // PHASE II: Graceful Degradation - Visual Vibration
+      triggerVisualVibration(type);
+    }
+
+    /**
+     * PHASE II: Visual Vibration Fallback
+     * Provides shake animation when hardware haptics unavailable
+     */
+    function triggerVisualVibration(type) {
+      const overlay = document.querySelector('.scan-overlay');
+      
+      if (type === 'error' || type === 'warning') {
+        overlay.classList.add('visual-shake');
+        setTimeout(() => {
+          overlay.classList.remove('visual-shake');
+        }, 500);
+        log(`✓ Visual vibration (fallback): ${type}`);
+      }
+    }
+
+    function triggerScreenFlash(type) {
+      const overlay = document.createElement('div');
+      overlay.className = `screen-flash screen-flash-${type}`;
+      document.body.appendChild(overlay);
+      setTimeout(() => overlay.remove(), 400);
+    }
+
+    function triggerOverlayFeedback(type) {
+      const overlay = document.querySelector('.scan-overlay');
+      overlay.classList.add(`feedback-${type}`);
+      setTimeout(() => {
+        overlay.classList.remove(`feedback-${type}`);
+      }, 500);
+    }
+
+    function triggerFeedback(type) {
+      triggerHaptic(type);
+      triggerScreenFlash(type);
+      triggerOverlayFeedback(type);
+      
+      const audioMap = {
+        success: audioBuffers.success,
+        error: audioBuffers.error,
+        warning: audioBuffers.error,
+        complete: audioBuffers.complete
+      };
+      
+      if (audioMap[type]) {
+        playAudioBuffer(audioMap[type]);
+      }
+      
+      console.log(`🎯 Multi-sensory feedback: ${type}`);
+    }
+
+    // ===== PHASE II: TRANSACTION CONFIRMATION MODAL =====
+    
+    /**
+     * Show pre-submission confirmation gateway
+     */
+    function showConfirmationModal() {
+      if (!userId || sessionHistory.length === 0 || isProcessing) return;
+
+      const modal = document.createElement('div');
+      modal.id = 'confirmationModal';
+      modal.className = 'modal-overlay confirmation-modal';
+      
+      const actionLabel = mode === 'borrow' ? 'Checkout' : 'Return';
+      
+      modal.innerHTML = `
+        <div class="modal-content">
+          <div class="warning-icon">⚠️</div>
+          <h2>Confirm ${actionLabel}</h2>
+          
+          <div class="transaction-summary">
+            <h3>${actionLabel} Summary</h3>
+            
+            <div class="transaction-item">
+              <span class="transaction-label">User ID:</span>
+              <span class="transaction-value">${userId}</span>
+            </div>
+            
+            <div class="transaction-item">
+              <span class="transaction-label">Action:</span>
+              <span class="transaction-value">${mode.toUpperCase()}</span>
+            </div>
+            
+            <div class="transaction-item">
+              <span class="transaction-label">Asset Count:</span>
+              <span class="asset-count">${sessionHistory.length}</span>
+            </div>
+          </div>
+          
+          <p style="color: #475569; font-size: 14px; margin: 16px 0;">
+            ${mode === 'borrow' 
+              ? 'You are about to check out these iPads. Ensure all IDs are correct.'
+              : 'You are about to return these iPads. This will remove them from the borrowed list.'}
+          </p>
+          
+          <div class="modal-actions">
+            <button class="modal-btn modal-btn-cancel" onclick="dismissConfirmationModal()">
+              Cancel
+            </button>
+            <button class="modal-btn modal-btn-confirm" onclick="confirmAndProceed()">
+              Confirm & Proceed
+            </button>
+          </div>
+        </div>
+      `;
+      
+      document.body.appendChild(modal);
+      triggerFeedback('warning');
+    }
+
+    function dismissConfirmationModal() {
+      const modal = document.getElementById('confirmationModal');
+      if (modal) {
+        modal.classList.add('fade-out');
+        setTimeout(() => modal.remove(), 300);
+      }
+    }
+
+    async function confirmAndProceed() {
+      dismissConfirmationModal();
+      await finishSession();
+    }
+
+    // ===== ENHANCED POST-SAVE FEEDBACK MODALS =====
+    
+    /**
+     * Show saving overlay with immediate feedback
+     */
+    function showSavingOverlay(message = "Processing transaction...") {
+      const overlay = document.getElementById('savingOverlay');
+      const subtext = document.getElementById('savingSubtext');
+      subtext.textContent = message;
+      overlay.classList.add('active');
+    }
+    
+    /**
+     * Hide saving overlay
+     */
+    function hideSavingOverlay() {
+      const overlay = document.getElementById('savingOverlay');
+      overlay.classList.remove('active');
+    }
+    
+    /**
+     * Show result modal with transaction summary
+     * @param {string} type - 'success', 'error', or 'warning'
+     * @param {Object} data - Transaction result data
+     */
+    function showResultModal(type, data) {
+      const modal = document.getElementById('resultModal');
+      const icon = document.getElementById('resultIcon');
+      const title = document.getElementById('resultTitle');
+      const summary = document.getElementById('resultSummary');
+      const details = document.getElementById('resultDetails');
+      const errors = document.getElementById('resultErrors');
+      const autoClose = document.getElementById('resultAutoClose');
+      
+      // Reset classes
+      icon.className = `result-icon ${type}`;
+      
+      // Set icon
+      if (type === 'success') {
+        icon.textContent = '✓';
+      } else if (type === 'error') {
+        icon.textContent = '✕';
+      } else if (type === 'warning') {
+        icon.textContent = '⚠';
+      }
+      
+      // Set title and summary
+      const totalCount = data.totalCount || 0;
+      const successCount = data.successCount || 0;
+      const failedCount = data.failedCount || 0;
+      
+      if (type === 'success') {
+        title.textContent = 'Transaction Complete!';
+        summary.textContent = `Successfully ${mode === 'borrow' ? 'borrowed' : 'returned'} ${totalCount} iPad${totalCount > 1 ? 's' : ''}`;
+        details.style.display = 'none';
+        errors.style.display = 'none';
+        
+        // Auto-close after 2 seconds for full success
+        autoClose.style.display = 'block';
+        let countdown = 2;
+        document.getElementById('autoCloseTimer').textContent = countdown;
+        
+        const timer = setInterval(() => {
+          countdown--;
+          if (countdown > 0) {
+            document.getElementById('autoCloseTimer').textContent = countdown;
+          } else {
+            clearInterval(timer);
+            closeResultModal();
+          }
+        }, 1000);
+        
+        // Trigger success feedback
+        triggerFeedback('complete');
+        
+      } else if (type === 'warning') {
+        title.textContent = 'Partial Success';
+        summary.textContent = `${successCount} succeeded, ${failedCount} failed`;
+        
+        // Show details
+        details.style.display = 'block';
+        details.innerHTML = `
+          <div class="result-detail-row">
+            <span class="result-detail-label">Total iPads:</span>
+            <span class="result-detail-value">${totalCount}</span>
+          </div>
+          <div class="result-detail-row">
+            <span class="result-detail-label">Successful:</span>
+            <span class="result-detail-value success-count">${successCount}</span>
+          </div>
+          <div class="result-detail-row">
+            <span class="result-detail-label">Failed:</span>
+            <span class="result-detail-value error-count">${failedCount}</span>
+          </div>
+        `;
+        
+        // Show error list
+        if (data.errors && data.errors.length > 0) {
+          errors.style.display = 'block';
+          errors.innerHTML = data.errors.map(error => `
+            <div class="result-error-item">
+              <div class="result-error-ipad">${error.ipadId}</div>
+              <div class="result-error-message">${error.message}</div>
+            </div>
+          `).join('');
+        }
+        
+        autoClose.style.display = 'none';
+        
+        // Trigger warning feedback
+        triggerFeedback('warning');
+        
+      } else if (type === 'error') {
+        title.textContent = 'Transaction Failed';
+        summary.textContent = failedCount > 0 
+          ? `All ${failedCount} iPad${failedCount > 1 ? 's' : ''} failed to process`
+          : 'Transaction could not be completed';
+        
+        // Show details
+        details.style.display = 'block';
+        details.innerHTML = `
+          <div class="result-detail-row">
+            <span class="result-detail-label">Total iPads:</span>
+            <span class="result-detail-value">${totalCount}</span>
+          </div>
+          <div class="result-detail-row">
+            <span class="result-detail-label">Failed:</span>
+            <span class="result-detail-value error-count">${failedCount}</span>
+          </div>
+        `;
+        
+        // Show error list
+        if (data.errors && data.errors.length > 0) {
+          errors.style.display = 'block';
+          errors.innerHTML = data.errors.map(error => `
+            <div class="result-error-item">
+              <div class="result-error-ipad">${error.ipadId}</div>
+              <div class="result-error-message">${error.message}</div>
+            </div>
+          `).join('');
+        }
+        
+        autoClose.style.display = 'none';
+        
+        // Trigger error feedback
+        triggerFeedback('error');
+      }
+      
+      // Show modal
+      modal.classList.add('active');
+    }
+    
+    /**
+     * Close result modal
+     */
+    function closeResultModal() {
+      const modal = document.getElementById('resultModal');
+      modal.classList.remove('active');
+      
+      // Auto-reset after modal closes
+      setTimeout(() => {
+        resetAll();
+      }, 300);
+    }
+
+    // ===== PHASE II: ERROR MODAL WITH SPECIFIC CODES =====
+    
+    /**
+     * Show detailed error modal with backend error codes
+     */
+    function showErrorModal(errorCode, errorMessage, details = {}) {
+      const modal = document.createElement('div');
+      modal.id = 'errorModal';
+      modal.className = 'modal-overlay error-modal';
+      
+      modal.innerHTML = `
+        <div class="modal-content">
+          <div class="error-icon">❌</div>
+          <h2>Transaction Failed</h2>
+          
+          <div class="error-details">
+            <p style="margin: 0 0 12px; color: #b91c1c; font-weight: 700;">
+              Error Code: ${errorCode}
+            </p>
+            <p style="margin: 0; color: #00002E; font-size: 15px;">
+              ${errorMessage}
+            </p>
+            ${details.ipadId ? `<code>Asset ID: ${details.ipadId}</code>` : ''}
+            ${details.reason ? `<code>Reason: ${details.reason}</code>` : ''}
+          </div>
+          
+          <p style="color: #475569; font-size: 13px; margin: 16px 0;">
+            ${getErrorGuidance(errorCode)}
+          </p>
+          
+          <button class="modal-close" onclick="dismissErrorModal()">
+            Close
+          </button>
+        </div>
+      `;
+      
+      document.body.appendChild(modal);
+      triggerFeedback('error');
+    }
+
+    function getErrorGuidance(errorCode) {
+      const guidance = {
+        'NOT_BORROWED': '💡 This iPad is not currently checked out. Please verify you scanned the correct asset tag.',
+        'ASSET_NOT_FOUND': '⚠️ This iPad is not in our system. Please contact the tech office for assistance.',
+        'ASSET_BLOCKED': '🔒 This iPad is currently reserved or under maintenance and cannot be borrowed at this time.',
+        'USER_NOT_FOUND': '👤 User ID not recognized. Please scan your student/staff ID card again.',
+        'ALREADY_BORROWED': '📱 This iPad is already checked out to another user. Please select a different iPad.',
+        'BORROW_LIMIT_EXCEEDED': '📵 You already have an iPad checked out. Please return it before borrowing another one.',
+        'VALIDATION_ERROR': '⚠️ This iPad was borrowed by someone else. Only the person who checked it out can return it.',
+        'NETWORK_ERROR': '📡 Cannot connect to server. Please check your internet connection and try again.',
+        'UNKNOWN': '❓ Something went wrong. Please contact tech support if this problem continues.'
+      };
+      
+      return guidance[errorCode] || guidance['UNKNOWN'];
+    }
+
+    function dismissErrorModal() {
+      const modal = document.getElementById('errorModal');
+      if (modal) {
+        modal.classList.add('fade-out');
+        setTimeout(() => modal.remove(), 300);
+      }
+    }
+
+    // v13.3: Dedicated modal shown when student tries to scan a 2nd iPad
+    function showBorrowLimitModal(uid) {
+      const existing = document.getElementById('borrowLimitModal');
+      if (existing) existing.remove();
+
+      modalVisible = true;
+
+      const modal = document.createElement('div');
+      modal.id = 'borrowLimitModal';
+      modal.innerHTML = `
+        <div class="modal-overlay">
+          <div class="modal-content" style="border-color: var(--warning);">
+            <div class="checkmark-icon" style="background: var(--warning); font-size: 44px;">📵</div>
+            <h2 style="color: var(--warning-dark);">Borrow Limit Reached</h2>
+            <div class="user-info">
+              <strong style="color: var(--warning-dark);">${uid}</strong>
+              You already have an iPad checked out.
+            </div>
+            <div class="next-step" style="border-color: var(--warning); background: var(--warning-soft);">
+              <div class="arrow-icon" style="color: var(--warning-dark);">↩</div>
+              <p>Please <strong>return your current iPad first</strong> before borrowing another.</p>
+            </div>
+            <button class="modal-close" onclick="dismissBorrowLimitModal()">OK, Got It</button>
+          </div>
+        </div>
+      `;
+
+      document.body.appendChild(modal);
+      setTimeout(() => dismissBorrowLimitModal(), 4000);
+    }
+
+    function dismissBorrowLimitModal() {
+      const modal = document.getElementById('borrowLimitModal');
+      if (modal) {
+        modal.classList.add('fade-out');
+        setTimeout(() => {
+          modal.remove();
+          modalVisible = false;
+        }, 300);
+      } else {
+        modalVisible = false;
+      }
+    }
+
+    // ===== USER CONFIRMATION MODAL (from Phase I) =====
+    
+    function showUserConfirmationModal(userId, userName) {
+      const existingModal = document.getElementById('userConfirmModal');
+      if (existingModal) existingModal.remove();
+      
+      modalVisible = true; // PHASE IV: Block scans during modal
+      
+      const modal = document.createElement('div');
+      modal.id = 'userConfirmModal';
+      modal.innerHTML = `
+        <div class="modal-overlay">
+          <div class="modal-content">
+            <div class="checkmark-icon">✓</div>
+            <h2>User Verified</h2>
+            <div class="user-info">
+              <strong>${userId}</strong>
+              ${userName ? userName : ''}
+            </div>
+            <div class="next-step">
+              <div class="arrow-icon">→</div>
+              <p>Now scan iPad asset tags</p>
+            </div>
+            <button class="modal-close" onclick="dismissModal()">Continue</button>
+          </div>
+        </div>
+      `;
+      
+      document.body.appendChild(modal);
+      setTimeout(() => dismissModal(), 2500);
+    }
+
+    function dismissModal() {
+      const modal = document.getElementById('userConfirmModal');
+      if (modal) {
+        modal.classList.add('fade-out');
+        setTimeout(() => {
+          modal.remove();
+          modalVisible = false; // PHASE IV: Re-enable scanning after modal
+        }, 300);
+      } else {
+        modalVisible = false; // Safety: clear flag even if modal already gone
+      }
+    }
+
+    // ===== ZXING QR SCANNER =====
+    
+    function log(...args) {
+      if (DEBUG_MODE) console.log(...args);
+    }
+
+    function setVhUnit() {
+      const vh = window.innerHeight * 0.01;
+      document.documentElement.style.setProperty("--vh", `${vh}px`);
+    }
+    
+    window.addEventListener("resize", setVhUnit);
+    window.addEventListener("orientationchange", () => setTimeout(setVhUnit, 250));
+    setVhUnit();
+
+    function updateBanner(text, cls) {
+      const b = document.getElementById("statusBanner");
+      b.innerText = text;
+      b.className = "status-banner " + cls;
+      b.onclick = null;
+      log("Banner:", text);
+    }
+
+    function enterCooldown() {
+      isInCooldown = true;
+      const overlay = document.querySelector('.scan-overlay');
+      overlay.classList.remove('scanning');
+      overlay.classList.add('cooldown');
+      
+      log('Cooldown started');
+      
+      cooldownTimer = setTimeout(() => {
+        exitCooldown();
+      }, COOLDOWN_DURATION);
+    }
+
+    function exitCooldown() {
+      isInCooldown = false;
+      const overlay = document.querySelector('.scan-overlay');
+      overlay.classList.remove('cooldown');
+      overlay.classList.add('scanning');
+      
+      log('Cooldown ended');
+    }
+
+    async function initZXingScanner() {
+      try {
+        if (codeReader) {
+          codeReader.reset();
+        }
+
+        codeReader = new ZXing.BrowserQRCodeReader();
+        
+        const videoInputDevices = await codeReader.listVideoInputDevices();
+        log('Available cameras:', videoInputDevices.length);
+        
+        if (videoInputDevices.length === 0) {
+          throw new Error('No camera found');
+        }
+        
+        const selectedDeviceId = videoInputDevices.find(device => 
+          device.label.toLowerCase().includes('back') || 
+          device.label.toLowerCase().includes('environment')
+        )?.deviceId || videoInputDevices[0]?.deviceId;
+        
+        const constraints = {
+          video: {
+            deviceId: { exact: selectedDeviceId },
+            facingMode: { ideal: 'environment' },
+            width: { ideal: 1280 },
+            height: { ideal: 720 },
+            aspectRatio: { ideal: 16/9 }
+          }
+        };
+        
+        await codeReader.decodeFromConstraints(
+          constraints,
+          'reader',
+          (result, error) => {
+            if (result) {
+              onScanSuccess(result.text);
+            }
+          }
+        );
+        
+        log('ZXing scanner started successfully');
+        updateBanner("SYNCING STATUS...", "status-waiting");
+        await syncSystemCache();
+        
+      } catch (err) {
+        console.error('ZXing initialization failed:', err);
+        updateBanner("CAMERA ERROR. TAP TO RETRY", "status-error");
+        document.getElementById("startOverlay").style.display = "flex";
+      }
+    }
+
+    async function stopZXingScanner() {
+      if (codeReader) {
+        codeReader.reset();
+        log('ZXing scanner stopped');
+      }
+    }
+
+    async function userStart() {
+      await initEnhancedAudio();
+      initHapticCapabilities(); // PHASE II: Test haptic support
+      
+      triggerHaptic('success');
+      document.getElementById("startOverlay").style.display = "none";
+      updateBanner("STARTING CAMERA...", "status-waiting");
+      await initZXingScanner();
+    }
+
+    async function syncSystemCache(retryCount = 0) {
+      const maxRetries = 3;
+      try {
+        updateBanner("🔄 LOADING SYSTEM DATA...", "status-waiting");
+        
+        const resp = await fetch(SCRIPT_URL, { method: "GET", cache: "no-cache" });
+        if (!resp.ok) throw new Error("HTTP " + resp.status);
+        const data = await resp.json();
+        if (!data.success) throw new Error(data.error || "Bad response");
+
+        unavailableIpads = (data.borrowed || [])
+          .map(x => (x || "").toString().trim().toUpperCase())
+          .filter(Boolean);
+
+        knownUsersSet = new Set(
+          (data.userIds || [])
+            .map(x => (x || "").toString().trim().toUpperCase())
+            .filter(Boolean)
+        );
+
+        knownIpadsSet = new Set(
+          (data.inventoryIds || [])
+            .map(x => (x || "").toString().trim().toUpperCase())
+            .filter(Boolean)
+        );
+
+        // v13.3: store user types and current borrow counts for client-side limit enforcement
+        userTypesMap = {};
+        const rawTypes = data.userTypes || {};
+        for (const uid in rawTypes) {
+          userTypesMap[uid.toUpperCase()] = (rawTypes[uid] || "").toString().trim().toUpperCase();
+        }
+
+        borrowedByUserMap = {};
+        const rawBorrowed = data.borrowedByUser || {};
+        for (const uid in rawBorrowed) {
+          borrowedByUserMap[uid.toUpperCase()] = rawBorrowed[uid] || 0;
+        }
+
+        log("Cache synced:", {
+          unavailable: unavailableIpads.length,
+          users: knownUsersSet.size,
+          inventory: knownIpadsSet.size
+        });
+
+        // CRITICAL: Validate that essential data is loaded
+        if (knownUsersSet.size === 0) {
+          throw new Error("User roster is empty - check User Roster sheet");
+        }
+        
+        if (knownIpadsSet.size === 0) {
+          throw new Error("iPad inventory is empty - check iPad Inventory sheet");
+        }
+
+        // Success - data loaded
+        const statusMsg = userId 
+          ? `✓ READY - SCAN NEXT IPAD (${knownUsersSet.size} users, ${knownIpadsSet.size} iPads loaded)` 
+          : `👤 READY - SCAN YOUR USER ID (${knownUsersSet.size} users, ${knownIpadsSet.size} iPads loaded)`;
+        
+        updateBanner(statusMsg, "status-success");
+        
+        log("✅ System ready - Users:", knownUsersSet.size, "iPads:", knownIpadsSet.size);
+
+      } catch (err) {
+        log("Sync failed:", err);
+        if (retryCount < maxRetries) {
+          updateBanner(`⚠️ LOADING DATA... (Attempt ${retryCount + 1}/${maxRetries})`, "status-warning");
+          setTimeout(() => syncSystemCache(retryCount + 1), 1000 * (retryCount + 1));
+        } else {
+          updateBanner("❌ DATA LOAD FAILED - CHECK CONNECTION & RELOAD PAGE", "status-error");
+          log("❌ Critical: Failed to load system data after", maxRetries, "attempts");
+        }
+      }
+    }
+
+    function makeRequestId() {
+      try {
+        if (crypto && crypto.randomUUID) return crypto.randomUUID();
+      } catch (e) {}
+      return "RID_" + Date.now() + "_" + Math.random().toString(16).slice(2);
+    }
+
+    function onScanSuccess(decodedText) {
+      const now = Date.now();
+      const clean = (decodedText || "").toString().trim().toUpperCase();
+      if (!clean) return;
+
+      // PHASE IV: FIX - Block scans during modal display
+      if (modalVisible) {
+        log("Scan blocked - modal is visible");
+        return;
+      }
+
+      // PHASE IV: FIX - Check cooldown
+      if (isInCooldown) {
+        log("Scan blocked - in cooldown");
+        return;
+      }
+
+      // PHASE IV: FIX - Check duplicate BEFORE updating lastScanned
+      // Only update lastScanned/lastScanTime when scan is actually processed
+      if (clean === lastScanned && (now - lastScanTime) < DUPLICATE_WINDOW) {
+        // Don't show banner repeatedly - silent block to prevent flicker
+        log("Duplicate scan blocked (same code within 2s):", clean);
+        return;
+      }
+
+      // PHASE IV: FIX - Update these ONLY after passing all checks
+      // This prevents the banner from flickering on continuous camera scans
+      lastScanned = clean;
+      lastScanTime = now;
+
+      // STEP 1: User ID Scan
+      if (!userId) {
+        // CRITICAL FIX #3: REQUIRE cache to be loaded before accepting User IDs
+        if (knownUsersSet.size === 0 && knownIpadsSet.size === 0) {
+          updateBanner("⚠️ LOADING DATA - PLEASE WAIT...", "status-warning");
+          triggerFeedback('warning');
+          log("Cache not loaded yet - rejecting scan");
+          // Trigger sync if not already in progress
+          syncSystemCache();
+          return;
+        }
+
+        // CRITICAL FIX #1 (REORDERED 2026-08): Check the real roster FIRST.
+        // A registered User ID is always accepted, even if it happens to be
+        // a pure number that would otherwise match the iPad-pattern heuristic
+        // below (e.g. 6-digit student IDs like "410302").
+        if (knownUsersSet.size > 0 && knownUsersSet.has(clean)) {
+          userId = clean;
+
+          showUserConfirmationModal(userId, "");
+
+          document.getElementById("userPanel").style.display = "flex";
+          document.getElementById("currentUserId").innerText = userId;
+          updateBanner("✅ USER VERIFIED - NOW SCAN IPADS", "status-success");
+
+          triggerFeedback('success');
+          enterCooldown();
+          return;
+        }
+
+        // CRITICAL FIX #2: Check against known iPad inventory
+        if (knownIpadsSet.size > 0 && knownIpadsSet.has(clean)) {
+          updateBanner("❌ THIS IS AN IPAD ID - SCAN YOUR USER ID FIRST", "status-error");
+          triggerFeedback('error');
+          log("Rejected: iPad ID found in inventory:", clean);
+          return;
+        }
+
+        // Not a known user and not a known iPad. Fall back to the
+        // pattern heuristic only now, to give a more helpful hint when the
+        // scan looks like an iPad/asset tag that isn't in inventory yet.
+        // iPad IDs typically follow patterns like: IPAD-XXX, IPAD_XXX, IPADXXX, etc.
+        const iPadPatterns = [
+          /^IPAD[-_]?\d+$/i,      // IPAD-111, IPAD_111, IPAD111
+          /^PAD[-_]?\d+$/i,       // PAD-111, PAD_111, PAD111
+          /^TABLET[-_]?\d+$/i,    // TABLET-111, TABLET_111
+          /^ASSET[-_]?\d+$/i,     // ASSET-111, ASSET_111
+          /^\d{3,6}$/,            // Pure numbers like 111, 1234 (common for assets)
+        ];
+
+        const looksLikeIpadId = iPadPatterns.some(pattern => pattern.test(clean));
+
+        if (looksLikeIpadId) {
+          updateBanner("❌ THIS LOOKS LIKE AN IPAD ID - SCAN YOUR USER ID FIRST", "status-error");
+          triggerFeedback('error');
+          log("Rejected: Pattern matched iPad ID format:", clean);
+          return;
+        }
+
+        // Genuinely unrecognized: not a known user, not a known iPad, and
+        // doesn't match any iPad-like pattern either.
+        updateBanner("❌ USER ID NOT RECOGNIZED - SCAN AGAIN", "status-error");
+        triggerFeedback('error');
+        log("User not in roster:", clean);
+        return;
+      }
+
+      // STEP 2: iPad/Asset ID Scan
+      // CRITICAL FIX #1: Pattern-based validation to detect User IDs
+      // User IDs typically follow patterns different from iPad IDs
+      const userIdPatterns = [
+        /^STUDENT[-_]?\d+$/i,    // STUDENT-12345, STUDENT_12345
+        /^STAFF[-_]?\d+$/i,      // STAFF-123, STAFF_123
+        /^TEACHER[-_]?\d+$/i,    // TEACHER-123
+        /^USER[-_]?\d+$/i,       // USER-123
+        /^[A-Z]{2,}\d{4,}$/,     // TC12345, ST12345 (prefix + numbers)
+      ];
+      
+      const looksLikeUserId = userIdPatterns.some(pattern => pattern.test(clean));
+      
+      if (looksLikeUserId) {
+        updateBanner("❌ THIS LOOKS LIKE A USER ID - SCAN AN IPAD ASSET TAG", "status-error");
+        triggerFeedback('error');
+        log("Rejected: Pattern matched User ID format:", clean);
+        return;
+      }
+      
+      // CRITICAL FIX #2: Check against known User roster
+      if (knownUsersSet.size > 0 && knownUsersSet.has(clean)) {
+        updateBanner("❌ THIS IS A USER ID - SCAN AN IPAD ASSET TAG", "status-error");
+        triggerFeedback('error');
+        log("Rejected: User ID scanned instead of iPad ID:", clean);
+        return;
+      }
+      
+      let isValidAsset = false;
+      
+      if (knownIpadsSet.size > 0) {
+        if (knownIpadsSet.has(clean)) {
+          isValidAsset = true;
+        } else {
+          updateBanner("❌ IPAD NOT IN SYSTEM - CHECK ASSET TAG", "status-error");
+          triggerFeedback('error');
+          log("Asset not in inventory:", clean);
+          return;
+        }
+      } else {
+        // CRITICAL FIX #3: Don't accept anything if cache not loaded
+        updateBanner("⚠️ DATA NOT LOADED - PLEASE WAIT", "status-warning");
+        triggerFeedback('warning');
+        log("Rejecting scan - inventory cache not loaded");
+        return;
+      }
+
+      if (isValidAsset) {
+        if (mode === "borrow" && unavailableIpads.includes(clean)) {
+          updateBanner("❌ CANNOT BORROW - RESERVED OR IN USE", "status-error");
+          triggerFeedback('error');
+          return;
+        }
+
+        // ── v13.3: CLIENT-SIDE BORROW LIMIT GUARD ────────────────────────────
+        // Prevent students from scanning a 2nd iPad before even hitting Save.
+        // Uses userTypesMap and borrowedByUserMap from the last syncSystemCache().
+        if (mode === "borrow" && userId) {
+          const userType = userTypesMap[userId] || "";
+          if (userType === "STUDENT") {
+            const alreadyHeld = borrowedByUserMap[userId] || 0;
+            const sessionCount = sessionHistory.length; // scanned this session so far
+            if (alreadyHeld + sessionCount >= 1) {
+              updateBanner("❌ BORROW LIMIT: RETURN YOUR CURRENT IPAD FIRST", "status-error");
+              triggerFeedback('error');
+              showBorrowLimitModal(userId);
+              return;
+            }
+          }
+        }
+        // ── END BORROW LIMIT GUARD ────────────────────────────────────────────
+
+        if (sessionHistory.includes(clean)) {
+          updateBanner("⚠️ ALREADY SCANNED IN THIS SESSION", "status-warning");
+          triggerFeedback('warning');
+          return;
+        }
+
+        sessionHistory.push(clean);
+        addHistoryRowBottom_(clean);
+
+        updateBanner("✓ " + clean + " - SCAN NEXT", "status-success");
+        triggerFeedback('success');
+        
+        enterCooldown();
+        return;
+      }
+
+      updateBanner("❌ INVALID QR CODE - SCAN AGAIN", "status-error");
+      triggerFeedback('error');
+    }
+
+    function updateCount_() {
+      document.getElementById("sessionCount").innerText = "Qty: " + sessionHistory.length;
+    }
+
+    function ensureHistoryVisible_() {
+      const list = document.getElementById("historyList");
+      if (list.style.display !== "block") list.style.display = "block";
+    }
+
+    function addHistoryRowBottom_(ipadId) {
+      const list = document.getElementById("historyList");
+      ensureHistoryVisible_();
+
+      const row = document.createElement("div");
+      row.className = "history-row status-pending";
+      row.setAttribute("data-ipad-id", ipadId);
+
+      const content = document.createElement("div");
+      content.className = "history-content";
+
+      const labelWrapper = document.createElement("div");
+      labelWrapper.className = "history-label";
+
+      const statusIcon = document.createElement("span");
+      statusIcon.className = "status-icon pending";
+      statusIcon.textContent = "○";
+
+      const label = document.createElement("span");
+      label.textContent = ipadId;
+
+      labelWrapper.appendChild(statusIcon);
+      labelWrapper.appendChild(label);
+      content.appendChild(labelWrapper);
+
+      const btn = document.createElement("button");
+      btn.className = "delete-btn";
+      btn.textContent = "DELETE";
+      btn.onclick = () => removeById_(ipadId);
+
+      row.appendChild(content);
+      row.appendChild(btn);
+
+      list.appendChild(row);
+      historyDom.set(ipadId, row);
+      ipadStatus.set(ipadId, { status: 'pending' }); // PHASE III: Initialize status
+      updateCount_();
+    }
+
+    // PHASE III: Update history row with success/failure status
+    function updateHistoryRowStatus_(ipadId, success, errorMessage = null) {
+      const row = historyDom.get(ipadId);
+      if (!row) return;
+
+      const content = row.querySelector('.history-content');
+      const statusIcon = row.querySelector('.status-icon');
+      const deleteBtn = row.querySelector('.delete-btn');
+      
+      // Update status tracking
+      ipadStatus.set(ipadId, { 
+        status: success ? 'success' : 'failed',
+        error: errorMessage 
+      });
+
+      // Update visual state
+      row.classList.remove('status-pending', 'status-success', 'status-failed');
+      statusIcon.classList.remove('pending', 'success', 'failed');
+
+      if (success) {
+        row.classList.add('status-success');
+        statusIcon.classList.add('success');
+        statusIcon.textContent = "✓";
+      } else {
+        row.classList.add('status-failed');
+        statusIcon.classList.add('failed');
+        statusIcon.textContent = "✗";
+
+        // Add error reason if provided
+        if (errorMessage) {
+          // Remove any existing error reason
+          const existingError = content.querySelector('.error-reason');
+          if (existingError) existingError.remove();
+
+          // Convert backend message to user-friendly format
+          const friendlyMessage = getShortErrorMessage_(errorMessage);
+
+          const errorReason = document.createElement("div");
+          errorReason.className = "error-reason";
+          errorReason.textContent = friendlyMessage;
+          content.appendChild(errorReason);
+        }
+      }
+
+      // UX FIX: Hide delete button for ALL items after "Finish and Save"
+      // Once the save operation completes, users should only VIEW results, not edit
+      // This creates a clear "final confirmation" state
+      if (deleteBtn) {
+        deleteBtn.style.display = 'none';
+      }
+
+      log(`Updated ${ipadId} status:`, success ? 'SUCCESS' : 'FAILED', errorMessage || '');
+    }
+
+    // PHASE III: Convert backend error messages to short, user-friendly format
+    function getShortErrorMessage_(message) {
+      const msg = (message || "").toLowerCase();
+      
+      // ENHANCED: More specific "wrong user" detection
+      if (msg.includes("borrowed by") && (msg.includes("not by") || msg.includes("not"))) {
+        return "You did not borrow this iPad";
+      }
+      if (msg.includes("not borrowed") || msg.includes("not currently")) {
+        return "Not checked out";
+      }
+      if (msg.includes("already borrowed") || msg.includes("already checked out")) {
+        return "Already in use";
+      }
+      if (msg.includes("not found") || msg.includes("does not exist")) {
+        return "Not in system";
+      }
+      if (msg.includes("blocked") || msg.includes("maintenance") || msg.includes("reserved")) {
+        return "Reserved/Maintenance";
+      }
+      
+      // Default: truncate long messages
+      if (message.length > 35) {
+        return message.substring(0, 32) + "...";
+      }
+      
+      return message;
+    }
+
+    function removeById_(ipadId) {
+      const idx = sessionHistory.indexOf(ipadId);
+      if (idx >= 0) sessionHistory.splice(idx, 1);
+
+      const el = historyDom.get(ipadId);
+      if (el && el.parentNode) el.parentNode.removeChild(el);
+      historyDom.delete(ipadId);
+      ipadStatus.delete(ipadId); // PHASE III: Clean up status tracking
+
+      updateCount_();
+      if (sessionHistory.length === 0) {
+        document.getElementById("historyList").style.display = "none";
+        updateBanner(userId ? "✓ READY - SCAN NEXT IPAD" : "👤 STEP 1: SCAN YOUR USER ID", "status-waiting");
+      }
+    }
+
+    function clearHistoryDom_() {
+      historyDom.clear();
+      ipadStatus.clear(); // PHASE III: Clear status tracking
+      const list = document.getElementById("historyList");
+      list.innerHTML = "";
+    }
+
+    async function clearAll() {
+      if (sessionHistory.length === 0 && !userId) return;
+
+      // PHASE IV: Smart confirmation logic
+      // If transaction completed (already saved), clear immediately without confirmation
+      // If transaction NOT completed (unsaved data), show confirmation
+      const hasUnsavedData = !transactionCompleted && sessionHistory.length > 0;
+      
+      if (hasUnsavedData) {
+        // UNSAVED data exists - confirm before clearing
+        if (!confirm("You have unsaved items. Clear anyway?")) {
+          return; // User cancelled
+        }
+      }
+      
+      // Clear immediately (no confirmation needed for saved data)
+      resetAll();
+      await stopZXingScanner();
+      await initZXingScanner();
+    }
+
+    function resetAll() {
+      userId = null;
+      sessionHistory = [];
+      ipadStatus.clear(); // PHASE III: Clear status tracking
+      isProcessing = false;
+      transactionCompleted = false; // PHASE IV: Reset transaction state
+      modalVisible = false; // PHASE IV: Clear modal state
+      document.getElementById("finishBtn").disabled = false;
+      document.getElementById("userPanel").style.display = "none";
+      document.getElementById("historyList").style.display = "none";
+      clearHistoryDom_();
+      updateCount_();
+      updateBanner("👤 STEP 1: SCAN YOUR USER ID", "status-waiting");
+      
+      if (cooldownTimer) clearTimeout(cooldownTimer);
+      exitCooldown();
+    }
+
+    function setMode(m) {
+      if (isProcessing) {
+        updateBanner("SAVING IN PROGRESS", "status-warning");
+        return;
+      }
+      
+      mode = m;
+      document.getElementById("btnBorrow").classList.toggle("active", m === "borrow");
+      document.getElementById("btnReturn").classList.toggle("active", m === "return");
+      
+      resetAll();
+      syncSystemCache();
+    }
+
+    // PHASE II: Enhanced finishSession with detailed error handling
+    async function finishSession() {
+      // PHASE IV: Prevent duplicate saves
+      if (transactionCompleted) {
+        updateBanner("⚠️ ALREADY SAVED - CLICK 'CLEAR' TO START OVER", "status-warning");
+        return;
+      }
+
+      if (!userId || sessionHistory.length === 0 || isProcessing) return;
+
+      isProcessing = true;
+      transactionCompleted = true; // PHASE IV: Mark transaction as attempted
+      document.getElementById("finishBtn").disabled = true;
+      
+      // ENHANCED: Show immediate saving overlay
+      showSavingOverlay(`Processing ${sessionHistory.length} iPad${sessionHistory.length > 1 ? 's' : ''}...`);
+      updateBanner("SAVING...", "status-warning");
+
+      const payload = {
+        action: mode,
+        userId: userId,
+        ipadIds: sessionHistory,
+        requestId: makeRequestId()
+      };
+
+      const maxRetries = 3;
+
+      for (let attempt = 1; attempt <= maxRetries; attempt++) {
+        try {
+          const controller = new AbortController();
+          const t = setTimeout(() => controller.abort(), 15000);
+
+          const resp = await fetch(SCRIPT_URL, {
+            method: "POST",
+            headers: { "Content-Type": "text/plain;charset=utf-8" },
+            body: JSON.stringify(payload),
+            signal: controller.signal
+          });
+
+          clearTimeout(t);
+
+          let result = null;
+          try { result = await resp.json(); } catch (e) {}
+
+          // PHASE III: Handle partial success - update individual iPad statuses
+          if (result && result.results && Array.isArray(result.results)) {
+            log("Processing individual iPad results:", result.results);
+            
+            // Collect errors for modal display
+            const errors = [];
+            
+            // Update each iPad's status in the UI
+            for (const ipadResult of result.results) {
+              const ipadId = (ipadResult.ipadId || "").toString().trim().toUpperCase();
+              const success = ipadResult.success === true;
+              const errorMsg = success ? null : (ipadResult.message || "Transaction failed");
+              
+              updateHistoryRowStatus_(ipadId, success, errorMsg);
+              
+              // ENHANCED: Collect errors for modal
+              if (!success) {
+                errors.push({
+                  ipadId: ipadId,
+                  message: errorMsg
+                });
+              }
+            }
+
+            const successCount = result.results.filter(r => r.success).length;
+            const totalCount = result.results.length;
+            const failedCount = totalCount - successCount;
+
+            // CRITICAL DEBUG: Log the counts
+            log(`Transaction results: Total=${totalCount}, Success=${successCount}, Failed=${failedCount}, result.success=${result.success}`);
+
+            // Hide saving overlay
+            hideSavingOverlay();
+
+            // CRITICAL FIX: Check successCount FIRST, not result.success
+            // This prevents showing success modal when backend returns success:false
+            if (successCount === totalCount && totalCount > 0) {
+              // ALL items succeeded
+              log("✅ All items succeeded - showing success modal");
+              updateBanner("✅ SAVED SUCCESSFULLY - READY FOR NEXT USER", "status-success");
+              
+              showResultModal('success', {
+                totalCount: totalCount,
+                successCount: successCount,
+                failedCount: 0,
+                errors: []
+              });
+
+              await syncSystemCache();
+              return;
+              
+            } else if (successCount > 0 && failedCount > 0) {
+              // PARTIAL SUCCESS: Some succeeded, some failed
+              log(`⚠️ Partial success - ${successCount} succeeded, ${failedCount} failed`);
+              updateBanner(
+                `⚠️ ${failedCount} FAILED - REVIEW ERRORS BELOW`,
+                "status-warning"
+              );
+              
+              showResultModal('warning', {
+                totalCount: totalCount,
+                successCount: successCount,
+                failedCount: failedCount,
+                errors: errors
+              });
+              
+              isProcessing = false;
+              return;
+              
+            } else if (failedCount === totalCount && totalCount > 0) {
+              // ALL items failed
+              log(`❌ All items failed - ${failedCount} errors`);
+              updateBanner("❌ ALL FAILED - REVIEW ERRORS BELOW", "status-error");
+              
+              showResultModal('error', {
+                totalCount: totalCount,
+                successCount: 0,
+                failedCount: failedCount,
+                errors: errors
+              });
+              
+              isProcessing = false;
+              return;
+              
+            } else {
+              // Edge case: empty results array
+              log("⚠️ Edge case: No items processed");
+              updateBanner("⚠️ NO ITEMS PROCESSED", "status-warning");
+              
+              showResultModal('error', {
+                totalCount: 0,
+                successCount: 0,
+                failedCount: 0,
+                errors: [{ ipadId: 'SYSTEM', message: 'No items were processed' }]
+              });
+              
+              isProcessing = false;
+              return;
+            }
+          }
+
+          // Original success handling (if no results array)
+          // CRITICAL FIX: This should ONLY execute if there's no results array
+          if (result && result.success && (!result.results || !Array.isArray(result.results))) {
+            log("⚠️ Legacy response format (no results array) - showing success");
+            // Hide saving overlay
+            hideSavingOverlay();
+            
+            updateBanner("✅ SAVED SUCCESSFULLY - READY FOR NEXT USER", "status-success");
+            
+            // ENHANCED: Show success modal
+            showResultModal('success', {
+              totalCount: sessionHistory.length,
+              successCount: sessionHistory.length,
+              failedCount: 0,
+              errors: []
+            });
+
+            await syncSystemCache();
+            return;
+          }
+
+          // PHASE II: Enhanced error handling with specific codes
+          if (result && result.errorCode) {
+            const errorCode = result.errorCode;
+            const errorMessage = result.message || result.error || "Transaction failed";
+            const details = result.details || {};
+            
+            // Hide saving overlay
+            hideSavingOverlay();
+            
+            showErrorModal(errorCode, errorMessage, details);
+            
+            isProcessing = false;
+            updateBanner("⚠️ ERROR - CLICK 'CLEAR' TO START OVER", "status-error");
+            return;
+          }
+
+          if (result && (result.error || result.message)) {
+            // Hide saving overlay
+            hideSavingOverlay();
+            
+            const msg = (result.message || result.error || "SAVE FAILED").toString();
+            updateBanner(`❌ ${msg.toUpperCase()} - CLICK 'CLEAR' TO START OVER`, "status-error");
+            
+            // ENHANCED: Show error modal
+            showResultModal('error', {
+              totalCount: sessionHistory.length,
+              successCount: 0,
+              failedCount: sessionHistory.length,
+              errors: [{ ipadId: 'SYSTEM', message: msg }]
+            });
+            
+            isProcessing = false;
+            return;
+          }
+
+          throw new Error("Save failed");
+
+        } catch (err) {
+          log("Save attempt failed:", attempt, err);
+
+          if (err.name === 'AbortError') {
+            // Hide saving overlay
+            hideSavingOverlay();
+            
+            showErrorModal('NETWORK_ERROR', 'Request timed out after 15 seconds', {});
+            updateBanner("⚠️ TIMEOUT - CLICK 'CLEAR' TO START OVER", "status-error");
+            
+            // ENHANCED: Show timeout error modal
+            showResultModal('error', {
+              totalCount: sessionHistory.length,
+              successCount: 0,
+              failedCount: sessionHistory.length,
+              errors: [{ ipadId: 'NETWORK', message: 'Request timed out after 15 seconds' }]
+            });
+            
+            isProcessing = false;
+            return;
+          }
+
+          if (attempt < maxRetries) {
+            // Update saving overlay with retry info
+            showSavingOverlay(`Retrying... (Attempt ${attempt}/${maxRetries})`);
+            updateBanner("RETRYING " + attempt + " OF " + maxRetries, "status-warning");
+            await new Promise(r => setTimeout(r, 700 * attempt));
+          } else {
+            // Hide saving overlay
+            hideSavingOverlay();
+            
+            triggerFeedback('error');
+            updateBanner("❌ SAVE FAILED AFTER 3 ATTEMPTS - CLICK 'CLEAR' TO START OVER", "status-error");
+            
+            // ENHANCED: Show final error modal
+            showResultModal('error', {
+              totalCount: sessionHistory.length,
+              successCount: 0,
+              failedCount: sessionHistory.length,
+              errors: [{ ipadId: 'SYSTEM', message: 'Failed after 3 retry attempts' }]
+            });
+            
+            isProcessing = false;
+          }
+        }
+      }
+    }
+  </script>
+</body>
+</html>
