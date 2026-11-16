@@ -1066,6 +1066,68 @@
 
     .finish-btn:hover:not(:disabled){ background:var(--primary-dark); }
     .finish-btn:active:not(:disabled){ transform:scale(0.97); }
+    /* ===== LANDSCAPE / WIDE LAYOUT: camera left, session panel right =====
+       Portrait screens keep the stacked layout above. No HTML or JS changes:
+       the existing elements are placed into a CSS grid. */
+    @media (orientation: landscape) and (min-width: 700px) {
+      body{
+        display:grid;
+        grid-template-columns:minmax(0, 1.1fr) minmax(340px, 1fr);
+        grid-template-rows:auto auto auto minmax(0, 1fr) auto;
+        grid-template-areas:
+          "header header"
+          "cam    status"
+          "cam    user"
+          "cam    history"
+          "cam    footer";
+      }
+
+      .header{ grid-area:header; }
+
+      #reader-container{
+        grid-area:cam;
+        width:auto;
+        margin:12px 0 12px 12px;
+        padding:0;
+        min-height:0;
+      }
+
+      /* Camera fills the whole left column */
+      #reader{
+        position:absolute;
+        inset:0;
+        height:100% !important;
+      }
+
+      .start-overlay{ inset:0; }
+
+      .status-banner{ grid-area:status; margin:12px 12px 0; }
+      .user-panel{ grid-area:user; }
+      .history-section{ grid-area:history; min-height:0; }
+
+      .footer{
+        grid-area:footer;
+        background:transparent;
+        border-top:none;
+        box-shadow:none;
+        padding:0 12px 12px;
+      }
+    }
+    /* Short landscape screens (e.g. phones on their side): tighten spacing */
+    @media (orientation: landscape) and (min-width: 700px) and (max-height: 560px) {
+      .header{ padding:6px 12px; }
+      .mode-btn{ padding:8px; font-size:0.95rem; }
+      #reader-container{ margin:8px 0 8px 8px; }
+      .status-banner{ margin:8px 8px 0; padding:8px; font-size:0.8rem; }
+      .user-panel{ margin:8px 8px 0; padding:8px 12px; }
+      #currentUserId{ font-size:1.05rem; }
+      .clear-btn{ min-height:36px; padding:6px 12px; }
+      .history-section{ padding:4px 8px 8px; }
+      .history-header{ padding:6px 4px; margin-bottom:4px; }
+      .history-row{ padding:8px 10px; margin:6px 0; }
+      .footer{ padding:0 8px 8px; }
+      .finish-btn{ padding:12px; font-size:1rem; }
+    }
   </style>
 </head>
 <body>
@@ -1146,7 +1208,7 @@
 
   <script>
     // ===== CONFIG =====
-    const SCRIPT_URL = "https://script.google.com/a/macros/whs.tc.edu.tw/s/AKfycbxQxBkvB4NfzVYKB6EyGQLp16qhBuoaojSh86ZQKopkcHEACa_hZ0vxJdcw1P9MncBW5A/exec"; // UPDATE THIS
+    const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxQxBkvB4NfzVYKB6EyGQLp16qhBuoaojSh86ZQKopkcHEACa_hZ0vxJdcw1P9MncBW5A/exec"; // UPDATE THIS
     const DEBUG_MODE = true;
     const DUPLICATE_WINDOW = 2000;
     const COOLDOWN_DURATION = 1500;
