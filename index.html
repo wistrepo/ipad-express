@@ -86,11 +86,9 @@
 
     .mode-toggle{
       display:flex;
-      background:#eef1f6;
-      border-radius:12px;
-      padding:4px;
+      gap:12px;
       margin:0 auto;
-      width:min(520px, 100%);
+      width:min(760px, 100%);
     }
 
     .mode-btn:focus-visible,
@@ -105,25 +103,77 @@
       outline-offset:2px;
     }
 
+    /* ===== MODE TABS =====
+       Two separate, large buttons with their own colour and icon, so students
+       can't mix them up:
+         BORROW = WIST blue #0E6DFF, white text (4.5:1)
+         RETURN = WIST gold #C9BE0B, navy text (7.0:1)
+       Inactive tab = pale tint of its own colour, navy text (11.8:1 / 12.4:1).
+       Selected tab = solid fill, raised, with a check mark. */
     .mode-btn{
       flex:1;
-      padding:12px;
-      border:none;
-      border-radius:9px;
-      color:var(--text-3);
-      background:none;
-      font-size:1.05rem;
-      font-weight:800;
-      letter-spacing:0.5px;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      gap:12px;
+      min-height:72px;
+      padding:12px 16px;
+      border-radius:16px;
+      border:3px solid transparent;
+      color:var(--primary);
+      font-size:1.4rem;
+      font-weight:900;
+      letter-spacing:1px;
       cursor:pointer;
-      transition:0.2s;
+      transition:transform 0.15s, box-shadow 0.2s, background 0.2s;
     }
 
-    .mode-btn.active{
-      background:var(--primary);
-      color:#fff;
-      box-shadow:inset 0 -4px 0 var(--brand-gold), 0 2px 8px var(--primary-shadow);
+    .mode-icon{
+      width:28px;
+      height:28px;
+      flex-shrink:0;
     }
+
+    .mode-check{
+      display:none;
+      font-size:1.1rem;
+      line-height:1;
+    }
+
+    .mode-btn.active .mode-check{ display:inline; }
+
+    #btnBorrow{
+      background:#e7f0ff;
+      border-color:#9cc2ff;
+    }
+
+    #btnReturn{
+      background:var(--brand-gold-soft);
+      border-color:#dcd46a;
+    }
+
+    #btnBorrow.active{
+      background:var(--brand-blue);
+      border-color:var(--brand-blue);
+      color:#ffffff;
+      box-shadow:0 6px 16px rgba(14,109,255,0.35);
+      transform:translateY(-2px);
+    }
+
+    #btnReturn.active{
+      background:var(--brand-gold);
+      border-color:#8a820a;
+      color:var(--primary);
+      box-shadow:0 6px 16px rgba(138,130,10,0.35);
+      transform:translateY(-2px);
+    }
+
+    .mode-btn:not(.active):active{ transform:scale(0.97); }
+
+    /* Camera frame takes the colour of the current mode (iOS 15.4+; older
+       Safari keeps the plain frame, the tabs still show the mode) */
+    body:has(#btnBorrow.active) #reader{ border:4px solid var(--brand-blue); }
+    body:has(#btnReturn.active) #reader{ border:4px solid var(--brand-gold); }
 
     #reader-container{
       width:min(560px, 100%);
@@ -1116,7 +1166,8 @@
     /* Short landscape screens (e.g. phones on their side): tighten spacing */
     @media (orientation: landscape) and (min-width: 700px) and (max-height: 560px) {
       .header{ padding:6px 12px; }
-      .mode-btn{ padding:8px; font-size:0.95rem; }
+      .mode-btn{ min-height:52px; padding:6px 12px; font-size:1.15rem; }
+      .mode-icon{ width:22px; height:22px; }
       #reader-container{ margin:8px 0 8px 8px; }
       .status-banner{ margin:8px 8px 0; padding:8px; font-size:0.8rem; }
       .user-panel{ margin:8px 8px 0; padding:8px 12px; }
@@ -1133,8 +1184,16 @@
 <body>
   <div class="header">
     <div class="mode-toggle">
-      <button id="btnBorrow" class="mode-btn active" onclick="setMode('borrow')">BORROW</button>
-      <button id="btnReturn" class="mode-btn" onclick="setMode('return')">RETURN</button>
+      <button id="btnBorrow" class="mode-btn active" onclick="setMode('borrow')" aria-label="Borrow an iPad">
+        <svg class="mode-icon" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v15M5 12l7 7 7-7"/></svg>
+        <span>BORROW</span>
+        <span class="mode-check" aria-hidden="true">✓</span>
+      </button>
+      <button id="btnReturn" class="mode-btn" onclick="setMode('return')" aria-label="Return an iPad">
+        <svg class="mode-icon" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20V5M5 12l7-7 7 7"/></svg>
+        <span>RETURN</span>
+        <span class="mode-check" aria-hidden="true">✓</span>
+      </button>
     </div>
   </div>
 
