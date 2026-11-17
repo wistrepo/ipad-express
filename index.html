@@ -6,6 +6,7 @@
   <meta name="color-scheme" content="light" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
   <title>iPad Express Checkout - Phase II</title>
+  <!-- v13.4 (2026-11-17): phone layout fixes - mode buttons, step chips, scan box, landscape camera -->
 
   <!-- ZXing QR Code Library - Better iOS Compatibility -->
   <script src="https://unpkg.com/@zxing/library@0.20.0/umd/index.min.js"></script>
@@ -1335,6 +1336,86 @@
       .history-row{ padding:8px 10px; margin:6px 0; }
       .footer{ padding:0 8px 8px; }
       .finish-btn{ padding:12px; font-size:1rem; }
+    }
+
+    /* ===== PHONE FIXES (v13.4) ===================================================
+       iPad layouts are unchanged: every rule below is either scoped to narrow
+       or short screens, or caps at the same 260px the iPad already uses. */
+
+    /* Fix 1 - Borrow/Return off-centre on phones.
+       Cause: flex items default to min-width:auto, so the two big buttons could
+       not shrink below their text width. On a ~390px phone they needed ~550px,
+       pushed RETURN off the right edge, and the browser zoomed the whole page
+       out to fit, so nothing lined up. min-width:0 lets them share the row. */
+    .mode-btn{ min-width:0; }
+    .guide-step{ min-width:0; overflow:hidden; }
+
+    @media (max-width: 480px) {
+      .header{ padding:10px; }
+      .mode-toggle{ gap:10px; }
+      .mode-btn{
+        min-height:60px;
+        padding:8px 6px;
+        gap:8px;
+        font-size:1.1rem;
+        letter-spacing:0.5px;
+      }
+      .mode-icon{ width:22px; height:22px; }
+      .mode-check{ font-size:0.95rem; }
+
+      /* Step chips: "3 Finish & Save" was cut off on the right */
+      .guide-steps{ gap:4px; }
+      .guide-arrow{ display:none; }
+      .guide-step{ gap:4px; padding:6px 2px; font-size:0.7rem; letter-spacing:0; }
+      .guide-step .num{ width:18px; height:18px; font-size:0.7rem; }
+    }
+
+    /* Very small phones (iPhone SE 1st gen etc.): the fill colour already shows
+       which mode is active, so the check mark can go */
+    @media (max-width: 360px) {
+      .mode-check{ display:none !important; }
+      .mode-btn{ font-size:1rem; }
+    }
+
+    /* Fix 2 - scan box larger than the camera view.
+       The green box was a fixed 260px square, but on a phone the camera view is
+       shorter than that (about 210px in landscape), so the box spilled out above
+       and below. It now sizes to 78% of the camera height, capped at 260px, so
+       the iPad still gets the same 260px box. */
+    @supports (aspect-ratio: 1 / 1) {
+      .scan-overlay{
+        width:auto;
+        height:min(260px, 78%);
+        max-width:none;
+        aspect-ratio:1 / 1;
+      }
+    }
+
+    /* Fix 3 - phone landscape: give the camera the full screen height.
+       The Borrow/Return bar moves into the right-hand column, so the camera
+       is no longer squeezed under it (about 210px -> 280px tall on an iPhone). */
+    @media (orientation: landscape) and (min-width: 700px) and (max-height: 560px) {
+      body{
+        grid-template-rows:auto auto auto auto minmax(0, 1fr) auto;
+        grid-template-areas:
+          "cam header"
+          "cam guide"
+          "cam status"
+          "cam user"
+          "cam history"
+          "cam footer";
+        /* keep the camera clear of the notch / Dynamic Island */
+        padding-left:env(safe-area-inset-left);
+        padding-right:env(safe-area-inset-right);
+      }
+      .header{
+        background:transparent;
+        border-bottom:none;
+        box-shadow:none;
+        padding:8px 8px 0;
+      }
+      .mode-toggle{ gap:8px; }
+      .mode-btn{ min-height:48px; font-size:1.05rem; gap:8px; padding:6px 8px; }
     }
   </style>
 </head>
