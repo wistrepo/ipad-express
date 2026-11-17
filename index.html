@@ -1116,6 +1116,155 @@
 
     .finish-btn:hover:not(:disabled){ background:var(--primary-dark); }
     .finish-btn:active:not(:disabled){ transform:scale(0.97); }
+    /* ===== STEP GUIDE =====
+       Tells students what to do next: 1 Scan ID -> 2 Scan iPad -> 3 Finish & Save.
+       Driven by updateGuide_(), which runs whenever the banner or count changes. */
+    .guide-card{
+      margin:12px 12px 0;
+      padding:12px 14px;
+      background:#ffffff;
+      border:2px solid var(--primary-border);
+      border-radius:16px;
+      box-shadow:var(--shadow-sm);
+      flex-shrink:0;
+    }
+
+    .guide-steps{
+      display:flex;
+      align-items:center;
+      gap:6px;
+      margin-bottom:10px;
+    }
+
+    .guide-step{
+      flex:1;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      gap:6px;
+      padding:6px 4px;
+      border-radius:999px;
+      background:#eef1f6;
+      color:#475569;              /* 7.0:1 on #eef1f6 */
+      font-size:0.8rem;
+      font-weight:800;
+      letter-spacing:0.3px;
+      white-space:nowrap;
+      transition:background 0.2s, color 0.2s;
+    }
+
+    .guide-step .num{
+      display:inline-flex;
+      align-items:center;
+      justify-content:center;
+      width:20px;
+      height:20px;
+      border-radius:50%;
+      background:#ffffff;
+      color:var(--primary);
+      font-size:0.75rem;
+      font-weight:900;
+    }
+
+    .guide-step.current{
+      background:var(--primary);
+      color:#ffffff;              /* 13.5:1 */
+    }
+
+    .guide-step.done{
+      background:#dcfce7;
+      color:#166534;              /* 6.5:1 */
+    }
+
+    .guide-step.done .num{ background:#16a34a; color:#ffffff; }
+
+    .guide-arrow{
+      color:#94a3b8;
+      font-weight:900;
+      flex-shrink:0;
+    }
+
+    .guide-main{
+      display:flex;
+      align-items:center;
+      gap:14px;
+    }
+
+    .guide-icon{
+      width:48px;
+      height:48px;
+      flex-shrink:0;
+      border-radius:12px;
+      background:var(--primary-soft);
+      color:var(--primary);
+      display:flex;
+      align-items:center;
+      justify-content:center;
+    }
+
+    .guide-icon svg{ width:30px; height:30px; }
+
+    .guide-text{
+      font-size:1.15rem;
+      font-weight:800;
+      color:var(--text);
+      line-height:1.3;
+    }
+
+    .guide-sub{
+      font-size:0.85rem;
+      font-weight:600;
+      color:#475569;
+      margin-top:2px;
+    }
+
+    /* New-step entrance: draws the eye when the step changes */
+    .guide-card.changed{ animation:guidePop 0.6s ease-out; }
+    @keyframes guidePop{
+      0%{ transform:scale(0.96); border-color:var(--brand-blue); box-shadow:0 0 0 6px rgba(14,109,255,0.25); }
+      100%{ transform:scale(1); }
+    }
+
+    /* Step 2 is the step students miss: highlight it in WIST blue */
+    .guide-card.step-2{ border-color:var(--brand-blue); }
+    .guide-card.step-2 .guide-icon{ background:var(--brand-blue); color:#ffffff; animation:guideNudge 1.4s ease-in-out infinite; }
+    @keyframes guideNudge{ 0%,100%{ transform:translateY(0); } 50%{ transform:translateY(-4px); } }
+
+    /* Prompt pinned to the bottom of the camera view */
+    .camera-prompt{
+      position:absolute;
+      left:50%;
+      bottom:14px;
+      transform:translateX(-50%);
+      max-width:calc(100% - 48px);
+      padding:8px 16px;
+      border-radius:999px;
+      background:rgba(255,255,255,0.95);
+      color:var(--primary);
+      font-size:1rem;
+      font-weight:900;
+      letter-spacing:0.3px;
+      white-space:nowrap;
+      overflow:hidden;
+      text-overflow:ellipsis;
+      box-shadow:0 4px 14px rgba(0,0,0,0.3);
+      pointer-events:none;
+      z-index:5;
+    }
+    .camera-prompt:empty{ display:none; }
+    .camera-prompt.step-2{ background:var(--brand-blue); color:#ffffff; }
+
+    /* FINISH & SAVE pulses when it's the next thing to tap */
+    .finish-btn.attention:not(:disabled){ animation:finishPulse 1.6s ease-in-out infinite; }
+    @keyframes finishPulse{
+      0%,100%{ box-shadow:0 8px 20px var(--primary-shadow), 0 0 0 0 rgba(14,109,255,0.55); }
+      50%{ box-shadow:0 8px 20px var(--primary-shadow), 0 0 0 8px rgba(14,109,255,0); }
+    }
+
+    @media (prefers-reduced-motion: reduce){
+      .guide-card.changed, .guide-card.step-2 .guide-icon, .finish-btn.attention{ animation:none !important; }
+    }
+
     /* ===== LANDSCAPE / WIDE LAYOUT: camera left, session panel right =====
        Portrait screens keep the stacked layout above. No HTML or JS changes:
        the existing elements are placed into a CSS grid. */
@@ -1123,9 +1272,10 @@
       body{
         display:grid;
         grid-template-columns:minmax(0, 1.1fr) minmax(340px, 1fr);
-        grid-template-rows:auto auto auto minmax(0, 1fr) auto;
+        grid-template-rows:auto auto auto auto minmax(0, 1fr) auto;
         grid-template-areas:
           "header header"
+          "cam    guide"
           "cam    status"
           "cam    user"
           "cam    history"
@@ -1151,6 +1301,7 @@
 
       .start-overlay{ inset:0; }
 
+      .guide-card{ grid-area:guide; }
       .status-banner{ grid-area:status; margin:12px 12px 0; }
       .user-panel{ grid-area:user; }
       .history-section{ grid-area:history; min-height:0; }
@@ -1170,6 +1321,12 @@
       .mode-icon{ width:22px; height:22px; }
       #reader-container{ margin:8px 0 8px 8px; }
       .status-banner{ margin:8px 8px 0; padding:8px; font-size:0.8rem; }
+      .guide-card{ margin:8px 8px 0; padding:8px 10px; }
+      .guide-steps{ display:none; }
+      .guide-icon{ width:36px; height:36px; }
+      .guide-icon svg{ width:22px; height:22px; }
+      .guide-text{ font-size:0.95rem; }
+      .guide-sub{ display:none; }
       .user-panel{ margin:8px 8px 0; padding:8px 12px; }
       #currentUserId{ font-size:1.05rem; }
       .clear-btn{ min-height:36px; padding:6px 12px; }
@@ -1205,8 +1362,26 @@
       <div class="scan-corner bl"></div>
       <div class="scan-corner br"></div>
     </div>
+    <div id="cameraPrompt" class="camera-prompt" aria-hidden="true"></div>
     <div id="startOverlay" class="start-overlay">
       <button class="start-btn" onclick="userStart()">SCAN QR CODE</button>
+    </div>
+  </div>
+
+  <div class="guide-card" id="guideCard" role="status" aria-live="polite">
+    <div class="guide-steps">
+      <div class="guide-step" id="guideStep1"><span class="num">1</span>Scan ID</div>
+      <span class="guide-arrow" aria-hidden="true">›</span>
+      <div class="guide-step" id="guideStep2"><span class="num">2</span>Scan iPad</div>
+      <span class="guide-arrow" aria-hidden="true">›</span>
+      <div class="guide-step" id="guideStep3"><span class="num">3</span>Finish &amp; Save</div>
+    </div>
+    <div class="guide-main">
+      <div class="guide-icon" id="guideIcon" aria-hidden="true"></div>
+      <div>
+        <div class="guide-text" id="guideText">Tap SCAN QR CODE to start</div>
+        <div class="guide-sub" id="guideSub">Then scan your ID card</div>
+      </div>
     </div>
   </div>
 
@@ -1884,7 +2059,7 @@
             </div>
             <div class="next-step">
               <div class="arrow-icon">→</div>
-              <p>Now scan iPad asset tags</p>
+              <p>Next: scan the QR code on the iPad</p>
             </div>
             <button class="modal-close" onclick="dismissModal()">Continue</button>
           </div>
@@ -1929,6 +2104,7 @@
       b.className = "status-banner " + cls;
       b.onclick = null;
       log("Banner:", text);
+      updateGuide_();
     }
 
     function enterCooldown() {
@@ -2294,7 +2470,106 @@
 
     function updateCount_() {
       document.getElementById("sessionCount").innerText = "Qty: " + sessionHistory.length;
+      updateGuide_();
     }
+
+    // ===== STEP GUIDE (UI only: reads state, never changes it) =====
+    const GUIDE_ICONS = {
+      start: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8V6a2 2 0 0 1 2-2h2M16 4h2a2 2 0 0 1 2 2v2M20 16v2a2 2 0 0 1-2 2h-2M8 20H6a2 2 0 0 1-2-2v-2"/><rect x="9" y="9" width="6" height="6" rx="1"/></svg>',
+      id:    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="9" cy="11" r="2"/><path d="M6 16c.6-1.4 1.7-2 3-2s2.4.6 3 2M15 10h3M15 13h3"/></svg>',
+      ipad:  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="2.5" width="14" height="19" rx="2.5"/><path d="M11 18.5h2"/></svg>',
+      save:  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>',
+      wait:  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>',
+      reset: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12a8 8 0 1 0 2.3-5.6M4 4v4h4"/></svg>'
+    };
+    let lastGuideKey_ = "";
+
+    function updateGuide_() {
+      try {
+        const card = document.getElementById("guideCard");
+        if (!card) return;
+
+        const startOverlay = document.getElementById("startOverlay");
+        const cameraOff = startOverlay && startOverlay.style.display !== "none";
+        const count = sessionHistory.length;
+        const isReturn = (mode === "return");
+        const isStudent = userId && (userTypesMap[userId] || "") === "STUDENT";
+        const atStudentLimit = !isReturn && isStudent && count >= 1;
+
+        let step, key, icon, text, sub, prompt;
+
+        if (cameraOff) {
+          step = 1; key = "start"; icon = "start";
+          text = "Tap SCAN QR CODE to start";
+          sub = "Then scan your ID card";
+          prompt = "";
+        } else if (isProcessing) {
+          step = 3; key = "saving"; icon = "wait";
+          text = "Saving… please wait";
+          sub = "Don't close this page";
+          prompt = "Saving…";
+        } else if (transactionCompleted) {
+          step = 3; key = "cleared"; icon = "reset";
+          text = "Tap CLEAR to start again";
+          sub = "Check the list for any iPads that failed";
+          prompt = "Tap CLEAR";
+        } else if (!userId) {
+          step = 1; key = "id"; icon = "id";
+          text = "Scan your ID card";
+          sub = "Hold your ID QR code inside the box";
+          prompt = "STEP 1 · Scan your ID";
+        } else if (count === 0) {
+          step = 2; key = "ipad"; icon = "ipad";
+          text = isReturn ? "Now scan the iPad you are returning"
+                          : "Now scan the iPad you want to borrow";
+          sub = "Hold the iPad's QR code inside the box";
+          prompt = "STEP 2 · Scan the iPad";
+        } else if (atStudentLimit) {
+          step = 3; key = "finish"; icon = "save";
+          text = "Tap FINISH & SAVE";
+          sub = "Your iPad is not borrowed until you save";
+          prompt = "STEP 3 · Tap FINISH & SAVE";
+        } else {
+          step = 3; key = "more:" + count; icon = "save";
+          text = "Scan another iPad, or tap FINISH & SAVE";
+          sub = count + " iPad" + (count > 1 ? "s" : "") + " ready to " + (isReturn ? "return" : "borrow");
+          prompt = "Scan more, or tap FINISH & SAVE";
+        }
+
+        // Step chips
+        [1, 2, 3].forEach(n => {
+          const el = document.getElementById("guideStep" + n);
+          el.classList.toggle("done", n < step);
+          el.classList.toggle("current", n === step);
+        });
+
+        document.getElementById("guideIcon").innerHTML = GUIDE_ICONS[icon];
+        document.getElementById("guideText").textContent = text;
+        document.getElementById("guideSub").textContent = sub;
+
+        card.classList.toggle("step-2", key === "ipad");
+
+        const cp = document.getElementById("cameraPrompt");
+        cp.textContent = prompt;
+        cp.classList.toggle("step-2", key === "ipad");
+
+        const fb = document.getElementById("finishBtn");
+        fb.classList.toggle("attention", step === 3 && !isProcessing && !transactionCompleted && count > 0);
+
+        // Pop animation only when the step itself changes
+        const stepKey = key.split(":")[0];
+        if (stepKey !== lastGuideKey_) {
+          card.classList.remove("changed");
+          void card.offsetWidth;
+          card.classList.add("changed");
+          lastGuideKey_ = stepKey;
+        }
+      } catch (e) {
+        log("Guide update skipped:", e);
+      }
+    }
+
+    updateGuide_(); // initial state on page load
 
     function ensureHistoryVisible_() {
       const list = document.getElementById("historyList");
