@@ -7,6 +7,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
   <title>iPad Express Checkout - Phase II</title>
   <!-- v13.4 (2026-11-17): phone layout fixes - mode buttons, step chips, scan box, landscape camera -->
+  <!-- v13.5 (2026-11-19): FINISH & SAVE always visible on phones - middle panels scroll, footer pinned -->
 
   <!-- ZXing QR Code Library - Better iOS Compatibility -->
   <script src="https://unpkg.com/@zxing/library@0.20.0/umd/index.min.js"></script>
@@ -1273,15 +1274,14 @@
       body{
         display:grid;
         grid-template-columns:minmax(0, 1.1fr) minmax(340px, 1fr);
-        grid-template-rows:auto auto auto auto minmax(0, 1fr) auto;
+        grid-template-rows:auto minmax(0, 1fr) auto;
         grid-template-areas:
           "header header"
-          "cam    guide"
-          "cam    status"
-          "cam    user"
-          "cam    history"
+          "cam    panel"
           "cam    footer";
       }
+
+      .panel-scroll{ grid-area:panel; }
 
       .header{ grid-area:header; }
 
@@ -1396,13 +1396,10 @@
        is no longer squeezed under it (about 210px -> 280px tall on an iPhone). */
     @media (orientation: landscape) and (min-width: 700px) and (max-height: 560px) {
       body{
-        grid-template-rows:auto auto auto auto minmax(0, 1fr) auto;
+        grid-template-rows:auto minmax(0, 1fr) auto;
         grid-template-areas:
           "cam header"
-          "cam guide"
-          "cam status"
-          "cam user"
-          "cam history"
+          "cam panel"
           "cam footer";
         /* keep the camera clear of the notch / Dynamic Island */
         padding-left:env(safe-area-inset-left);
@@ -1416,6 +1413,38 @@
       }
       .mode-toggle{ gap:8px; }
       .mode-btn{ min-height:48px; font-size:1.05rem; gap:8px; padding:6px 8px; }
+    }
+
+    /* ===== v13.5 - FINISH & SAVE ALWAYS REACHABLE =====
+       Cause: body is locked to the screen height with overflow:hidden, and the
+       guide card, status banner and user card all had flex-shrink:0. On a phone
+       their total height was taller than the screen, so the footer was pushed
+       below the bottom edge and clipped. Now those panels sit in one scroll
+       area that takes whatever space is left, and the footer never moves. */
+    .panel-scroll{
+      flex:1 1 auto;
+      min-height:0;               /* lets the area shrink below its content */
+      overflow-y:auto;
+      -webkit-overflow-scrolling:touch;
+      overscroll-behavior:contain;
+    }
+    /* The history list no longer needs its own scrollbar inside the area */
+    .panel-scroll .history-section{ flex:none; overflow:visible; }
+    .footer{ position:relative; z-index:20; }
+
+    /* Phone portrait: a slightly shorter camera leaves room for the step card.
+       Uses the real visible height (--vh) rather than raw vh, which on iPhone
+       ignores the browser toolbars. Overrides the iOS rule above. */
+    @media (orientation: portrait) and (max-width: 480px) {
+      #reader{
+        height:clamp(200px, calc(var(--vh) * 32), 300px) !important;
+      }
+      .footer{ padding:10px 12px; }
+    }
+
+    /* Phone landscape: slightly tighter footer to give the scroll area more room */
+    @media (orientation: landscape) and (min-width: 700px) and (max-height: 560px) {
+      .footer{ padding:6px 8px 8px; }
     }
   </style>
 </head>
@@ -1449,6 +1478,9 @@
     </div>
   </div>
 
+  <!-- v13.5: everything between the camera and FINISH & SAVE scrolls here,
+       so the footer button can never be pushed off-screen -->
+  <div class="panel-scroll" id="panelScroll">
   <div class="guide-card" id="guideCard" role="status" aria-live="polite">
     <div class="guide-steps">
       <div class="guide-step" id="guideStep1"><span class="num">1</span>Scan ID</div>
@@ -1486,6 +1518,7 @@
     </div>
     <div id="historyList"></div>
   </div>
+  </div><!-- /panel-scroll -->
 
   <div class="footer">
     <button id="finishBtn" class="finish-btn" onclick="showConfirmationModal()">FINISH & SAVE</button>
@@ -2691,6 +2724,8 @@
       row.appendChild(btn);
 
       list.appendChild(row);
+      // v13.5: on small screens the list is inside the scroll area - bring the new row into view
+      try { row.scrollIntoView({ block: "nearest", behavior: "smooth" }); } catch (e) {}
       historyDom.set(ipadId, row);
       ipadStatus.set(ipadId, { status: 'pending' }); // PHASE III: Initialize status
       updateCount_();
